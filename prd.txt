@@ -1,0 +1,321 @@
+ECOSPHERE REWARDS
+Product Requirements Document (PRD)
+An intelligent, gamified sustainability platform using Python, Flask, MySQL and modern web technologies
+Version: 1.0 | Project Type: Academic / Research Project | Status: Proposed
+1. Executive Summary
+EcoSphere Rewards is a data-driven sustainability platform that encourages users to perform, verify and consistently maintain environmentally responsible activities. The platform converts real-world actions such as recycling, cycling, public transport usage, tree planting, energy saving and plastic reduction into measurable environmental impact, EcoPoints, achievements and redeemable rewards.
+The enhanced version introduces activity verification, an Eco Wallet with immutable-style transaction history, personalized challenges, impact forecasting, anomaly detection, community competitions, QR-based event verification, reward inventory management and analytics. Python handles business logic and recommendation services, while MySQL provides normalized relational storage and transaction management.
+2. Problem Statement
+Existing sustainability initiatives often depend on awareness alone. Users may not have a simple way to measure the environmental effect of their daily actions, remain motivated over time, or receive meaningful feedback. Organizations also lack a centralized system for tracking participation and verifying sustainability activities.
+3. Product Vision
+Build a trustworthy sustainability ecosystem where every verified eco-friendly action becomes measurable impact, every measurable impact creates motivation, and aggregated participation helps communities understand their environmental contribution.
+4. Objectives
+Track diverse eco-friendly activities with configurable measurement units.
+Calculate points and environmental impact using database-driven conversion factors.
+Verify selected activities through QR codes, evidence uploads or organizer approval.
+Use streaks, levels, badges, challenges and leaderboards to encourage consistency.
+Provide personalized challenges and recommendations from historical behavior.
+Maintain a complete Eco Wallet transaction history for points earned and spent.
+Enable reward redemption with inventory, eligibility and transaction controls.
+Provide user, organization and administrator analytics.
+Detect unusual activity patterns and route suspicious submissions for review.
+5. Target Users & Roles
+Role
+Main Goal
+Key Capabilities
+Access
+User
+Build sustainable habits
+Activities, wallet, challenges, badges, rewards, analytics
+Own data
+Organization
+Run eco campaigns
+Create events, QR verification, participant analytics
+Organization data
+Verifier
+Validate activities
+Review evidence, approve/reject submissions
+Assigned reviews
+Admin
+Operate the platform
+Users, activities, rewards, factors, reports, moderation
+System-wide
+6. Core Modules
+Authentication & RBAC: Registration, login, password hashing, sessions/JWT, role-based permissions.
+User Profile: Goals, preferred activity categories, department/community, privacy controls.
+Activity Engine: Activity logging, quantity validation, points calculation, impact calculation.
+Verification Engine: QR codes, event participation, evidence, manual review and status tracking.
+Eco Wallet: Credit/debit transactions, balance, transaction history and audit trail.
+Gamification: XP, levels, streaks, badges, milestones and achievement rules.
+Challenge Engine: Personal, weekly, community and event challenges with progress tracking.
+Recommendation Engine: Behavior-based suggestions and next-best challenge recommendations.
+Impact Analytics: CO₂e, water, energy and waste impact dashboards with trends.
+Reward Marketplace: Reward catalog, inventory, redemption, eligibility and redemption history.
+Community & Leaderboards: Individual, department, organization and campaign rankings.
+Admin & Moderation: Management, suspicious activity review, reports and audit logs.
+7. User Journey
+Register → Set sustainability goals → Complete onboarding quiz → Receive baseline Eco Score → Log or verify activity → Calculate impact → Credit Eco Wallet → Update streak/XP → Evaluate badges/challenges → Recommend next action → Redeem rewards → Review personal impact.
+8. Functional Requirements
+ID
+Feature
+Requirement
+FR-01
+User registration and authentication
+System shall support secure registration, login, logout and password hashing.
+FR-02
+Activity logging
+User shall select an activity type, enter quantity/date and submit it for processing.
+FR-03
+Dynamic calculation
+Points and environmental impact shall be calculated from configurable database factors.
+FR-04
+Verification
+Activities requiring trust validation shall support QR, evidence or verifier approval.
+FR-05
+Wallet
+Approved activities shall generate wallet credit transactions; redemptions shall generate debit transactions.
+FR-06
+Gamification
+System shall update XP, levels, streaks and badge eligibility after relevant events.
+FR-07
+Challenges
+System shall create and track personal, recurring and community challenges.
+FR-08
+Rewards
+Users shall browse eligible rewards and redeem them subject to balance and stock.
+FR-09
+Analytics
+Users and admins shall see aggregated sustainability metrics and trends.
+FR-10
+Moderation
+Suspicious submissions shall be flagged and available for verifier/admin review.
+FR-11
+Notifications
+System shall notify users about challenges, streak milestones, approvals and redemptions.
+FR-12
+Auditability
+Important administrative and wallet events shall be recorded in audit logs.
+9. Innovative Features
+Eco Impact Passport — A lifetime profile showing verified CO₂e reduction, waste diverted, water/energy savings and milestones.
+Eco Score — A 0–100 sustainability score combining consistency, diversity of actions, verified impact and recent activity.
+Impact Forecast — Estimate a user's potential monthly impact if current sustainable behavior continues.
+Smart Challenge Generator — Python service selects challenges based on activity history, goals, streaks and difficulty.
+Trust Score — Verification reliability score based on approved/rejected submissions and verification method.
+QR Eco Events — Organizations create events with expiring QR tokens to verify attendance or participation.
+Community Missions — Groups work toward a shared target such as collectively diverting 100 kg of waste.
+Eco Wallet — Every point movement is recorded as a transaction rather than simply overwriting a balance.
+Anomaly Detection — Rules identify implausible quantities, rapid repeated submissions and abnormal patterns.
+Reward Tiers — Rewards can be unlocked by both points and eligibility conditions such as level or badge.
+10. Recommended Database Design
+Use a normalized relational design. Core entities:
+users(user_id, role_id, name, email, password_hash, eco_score, level, created_at)
+roles(role_id, role_name)
+user_profiles(user_id, department, goals, preferences)
+activity_types(activity_id, name, unit, base_points, verification_required)
+impact_factors(factor_id, activity_id, metric_type, factor_value, effective_from, effective_to)
+eco_activities(record_id, user_id, activity_id, quantity, points, status, activity_date)
+impact_records(record_id, eco_activity_id, metric_type, impact_value)
+point_transactions(transaction_id, user_id, amount, transaction_type, reference_id, created_at)
+wallets(user_id, current_balance)
+challenges(challenge_id, title, type, target_value, reward_points, start_date, end_date)
+user_challenges(user_id, challenge_id, progress, status)
+badges(badge_id, name, rule_type, rule_value)
+user_badges(user_id, badge_id, earned_at)
+rewards(reward_id, name, points_required, stock, tier, active)
+redemptions(redemption_id, user_id, reward_id, points_used, status, redeemed_at)
+organizations(org_id, name, type)
+eco_events(event_id, org_id, title, qr_token, start_time, end_time)
+verifications(verification_id, activity_id, verifier_id, method, decision, reviewed_at)
+notifications(notification_id, user_id, type, message, is_read)
+audit_logs(log_id, actor_id, action, entity_type, entity_id, created_at)
+11. Important SQL Capabilities
+JOIN users, activities, activity_types and impact_records for dashboards.
+GROUP BY activity/date/month for environmental analytics.
+Window functions for ranking users without duplicating leaderboard logic.
+Transactions for reward redemption: validate balance → lock/check stock → debit wallet → reduce stock → create redemption.
+Views for common reports such as monthly impact and active-user statistics.
+Indexes on user_id, activity_date, status, challenge_id and transaction timestamps.
+Constraints and foreign keys to protect referential integrity.
+Stored procedures may be used selectively for controlled administrative/reporting operations.
+12. Python / Flask Architecture
+Recommended architecture: Flask application + service layer + repository/data-access layer. Keep route handlers thin and place calculations, wallet operations, challenge evaluation and verification rules in services.
+app.py / config.py — application setup and configuration
+routes/auth.py — authentication endpoints
+routes/activity.py — activity APIs
+routes/challenge.py — challenge APIs
+routes/reward.py — reward and redemption APIs
+routes/admin.py — administration APIs
+services/impact_service.py — environmental calculations
+services/wallet_service.py — atomic points operations
+services/gamification_service.py — XP, streaks and badges
+services/recommendation_service.py — personalized suggestions
+services/verification_service.py — QR/evidence/review workflow
+repositories/ — database access functions
+templates/ — server-rendered pages
+static/ — CSS, JS, images and charts
+13. REST API Specification
+Method
+Endpoint
+Purpose
+POST
+/api/auth/register
+Create account
+POST
+/api/auth/login
+Authenticate user
+GET
+/api/dashboard
+Return summary statistics
+POST
+/api/activities
+Submit activity
+GET
+/api/activities
+List user's activities
+GET
+/api/impact
+Return impact trends
+GET
+/api/challenges
+Return available challenges
+POST
+/api/challenges/{id}/join
+Join a challenge
+GET
+/api/wallet
+Return wallet balance and transactions
+GET
+/api/rewards
+Return reward catalog
+POST
+/api/rewards/{id}/redeem
+Redeem reward
+GET
+/api/leaderboard
+Return ranked community data
+POST
+/api/verify/qr
+Verify QR event participation
+14. Frontend Requirements
+Responsive dashboard using Bootstrap or Tailwind CSS.
+Interactive Chart.js visualizations for weekly/monthly impact.
+Animated progress indicators for levels and challenges.
+Filterable activity history.
+Reward cards with stock, tier and redemption eligibility.
+Badge gallery with locked/unlocked states.
+Notification center.
+Accessible forms, clear validation and mobile-friendly layouts.
+Optional PWA-style experience for easy mobile access.
+15. Dashboard Layout
+Top cards: Eco Score | EcoPoints | Current Streak | CO₂e Saved. Middle section: weekly impact chart | challenge progress | recommended action. Bottom section: recent transactions | badges | leaderboard position | reward suggestions.
+16. Security & Data Integrity
+Hash passwords with a strong password-hashing library.
+Use parameterized SQL queries or a safe ORM/data-access layer.
+Validate all numeric quantities server-side.
+Apply role-based access control to admin/verifier endpoints.
+Use secure session handling and CSRF protection for form-based requests.
+Use database transactions for wallet and redemption operations.
+Prevent duplicate QR/event submissions.
+Maintain audit logs for privileged actions.
+17. Non-Functional Requirements
+Area
+Requirement
+Performance
+Typical dashboard/API requests should target sub-second server processing under normal project-scale load.
+Scalability
+Separate services and indexed tables should allow additional activities, organizations and rewards.
+Reliability
+Wallet changes and reward redemption must be atomic.
+Usability
+Core activity logging should be completable in a few simple steps.
+Maintainability
+Business logic should not be embedded directly in HTML templates or SQL strings.
+Privacy
+Expose only the minimum personal data needed on public leaderboards.
+18. Example End-to-End Scenario
+A student joins a campus cycling challenge. They scan the event QR code and submit 8 km of cycling. The backend verifies that the QR token is valid and not previously used. Python reads the active cycling factor from MySQL, calculates EcoPoints and estimated CO₂e savings, stores the activity and impact records, creates a wallet credit transaction, updates the user's challenge progress and streak, checks badge rules, and creates a notification. The dashboard then displays the updated score and progress.
+19. Analytics & Reports
+Daily/weekly/monthly points earned.
+CO₂e reduction by activity category.
+Waste recycled and plastic avoided.
+Top activities by participation.
+Challenge completion rate.
+Reward redemption trends.
+User retention and streak distribution.
+Organization/campus campaign performance.
+Verification acceptance/rejection rate.
+20. MVP vs Advanced Scope
+MVP
+Phase 2
+Advanced
+Login/Roles
+QR verification
+Anomaly detection
+Activity CRUD
+Organizations/events
+Impact forecasting
+Points/Wallet
+Community challenges
+Smart recommendations
+Badges/Streaks
+Reward inventory
+Advanced analytics
+Leaderboard
+Notifications
+PWA/offline support
+Basic dashboard
+Admin moderation
+Campaign optimization
+21. Success Metrics
+Percentage of registered users who log at least one activity.
+Weekly active users.
+Average activities per active user.
+Challenge completion rate.
+Average streak length.
+Verified activity percentage.
+Total estimated environmental impact.
+Reward redemption rate.
+User retention after 7 and 30 days.
+22. Suggested Project Deliverables
+Working Flask web application.
+Normalized MySQL database with ER diagram.
+SQL schema, sample data and analytical queries.
+REST API documentation.
+Responsive frontend.
+Admin dashboard.
+Test cases and validation report.
+System architecture and data-flow diagrams.
+Final project report and presentation.
+23. Future Enhancements
+Mobile application using Flutter or React Native.
+IoT integration for smart-meter based energy tracking.
+Public transport API integration.
+Computer-vision-assisted waste classification.
+Blockchain-style externally verifiable impact certificates.
+Corporate sustainability dashboards.
+Carbon-offset marketplace integration.
+24. Final Technology Stack
+Layer
+Technology
+Frontend
+HTML5, CSS3, JavaScript, Bootstrap/Tailwind CSS
+Charts
+Chart.js
+Backend
+Python 3 + Flask
+Database
+MySQL
+Database Access
+mysql-connector / SQLAlchemy
+Authentication
+Flask sessions + password hashing
+API
+REST / JSON
+Verification
+QR codes + evidence workflow
+Optional Analytics
+Pandas
+Deployment
+Gunicorn + Linux / cloud hosting
+25. Project Differentiator
+The project should be presented not as a simple reward application, but as a "verified sustainability intelligence platform." Its differentiator is the combination of a transactional Eco Wallet, configurable impact factors, verified activities, personalized challenge generation, environmental analytics, community missions and anomaly detection in one relational system.
