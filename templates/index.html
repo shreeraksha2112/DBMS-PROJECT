@@ -5,51 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EcoSphere Rewards</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(180deg, #f3fdf5 0%, #edf7ef 100%); font-family: 'Segoe UI', Tahoma, sans-serif; }
-        .card { border: none; border-radius: 18px; box-shadow: 0 8px 24px rgba(21, 60, 33, 0.08); margin-bottom: 20px; }
-        .eco-primary { background: linear-gradient(135deg, #1f7a3d, #2e9d5e); }
-        .hidden { display: none !important; }
-        .stat-value { font-size: 2rem; font-weight: 700; color: #1f7a3d; }
-        .subtle { color: #5e6d63; }
-        .section-title { font-weight: 700; color: #1b3d2d; }
-        .list-group-item { border-radius: 10px; margin-bottom: 8px; }
-        .mini-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #eaf7ee; color: #1d6f3b; font-size: 0.8rem; }
-    </style>
+    <link href="/static/site.css" rel="stylesheet">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark eco-primary mb-4">
+<nav class="navbar navbar-expand-lg navbar-dark eco-primary">
     <div class="container">
-        <a class="navbar-brand fw-bold" href="#">🌍 EcoSphere Rewards</a>
-        <button id="logoutBtn" class="btn btn-outline-light hidden" onclick="logout()">Logout</button>
+        <a class="navbar-brand fw-bold" href="/">
+            <span class="site-brand-mark" aria-hidden="true">E</span>
+            <span>EcoSphere <span class="brand-secondary">Rewards</span></span>
+        </a>
+        <button id="logoutBtn" class="btn btn-outline-light hidden" onclick="logout()">Log out</button>
     </div>
 </nav>
 
-<div class="container" id="authSection">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card p-4">
-                <h4 class="text-center mb-4 section-title">Login / Register</h4>
-                <div class="mb-3">
-                    <input type="text" id="name" class="form-control" placeholder="Name (for registration only)">
-                </div>
-                <div class="mb-3">
-                    <input type="email" id="email" class="form-control" placeholder="Email">
-                </div>
-                <div class="mb-3">
-                    <input type="password" id="password" class="form-control" placeholder="Password">
-                </div>
-                <div class="d-grid gap-2">
-                    <button class="btn btn-success" onclick="login()">Login</button>
-                    <button class="btn btn-outline-success" onclick="register()">Register</button>
-                </div>
-                <div id="authMessage" class="mt-3 text-center text-danger"></div>
+<div class="container auth-container" id="authSection">
+    <div class="auth-shell">
+        <section class="auth-brand-panel" aria-label="EcoSphere Rewards">
+            <div class="auth-brand-lockup">
+                <span class="site-brand-mark" aria-hidden="true">E</span>
+                <span>EcoSphere</span>
             </div>
-        </div>
+            <div class="auth-brand-copy">
+                <p class="site-eyebrow">COMMUNITY <span>/</span> REWARDS</p>
+                <h1>Small actions.<br>Lasting impact.</h1>
+                <p>Build better habits, track your environmental impact, and earn rewards along the way.</p>
+            </div>
+            <div class="auth-panel-foot"><span class="site-status-dot" aria-hidden="true"></span> Progress starts with one action.</div>
+        </section>
+
+        <section class="auth-form-panel" aria-labelledby="authTitle">
+            <div class="auth-form-topline">
+                <span>ECOSPHERE REWARDS</span>
+                <a href="/admin/login">ADMIN SIGN IN <span aria-hidden="true">&#8599;</span></a>
+            </div>
+            <div class="auth-form-content">
+                <p class="site-eyebrow auth-form-eyebrow">YOUR ACCOUNT</p>
+                <h2 id="authTitle">Welcome to EcoSphere</h2>
+                <p class="auth-form-intro">Sign in or create an account to continue.</p>
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name <span class="field-hint">for registration</span></label>
+                    <input type="text" id="name" class="form-control" autocomplete="name" placeholder="Your name">
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email address</label>
+                    <input type="email" id="email" class="form-control" autocomplete="username" placeholder="you@example.com">
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" class="form-control" autocomplete="current-password" placeholder="Enter your password">
+                </div>
+                <div class="d-grid gap-2 auth-actions">
+                    <button class="btn btn-success" onclick="login()">Sign in</button>
+                    <button class="btn btn-outline-success" onclick="register()">Create account</button>
+                </div>
+                <div id="authMessage" class="mt-3 text-center text-danger" role="status" aria-live="polite"></div>
+            </div>
+            <div class="auth-form-foot">EcoSphere Rewards <span>•</span> Make every good choice count.</div>
+        </section>
     </div>
 </div>
 
 <div class="container hidden" id="dashboardSection">
+    <header class="dashboard-heading">
+        <div>
+            <p class="site-eyebrow">YOUR ECOSPHERE <span>/</span> DASHBOARD</p>
+            <h1>Your impact, in motion.</h1>
+        </div>
+        <p class="dashboard-heading-note">Every action adds up.</p>
+    </header>
+
     <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="card p-3 text-center">
@@ -106,6 +130,31 @@
     </div>
 
     <div class="row g-3">
+        <div class="col-12">
+            <section class="card p-4 qr-claim-panel" aria-labelledby="qrClaimTitle">
+                <div class="qr-panel-heading">
+                    <div>
+                        <p class="site-eyebrow">BUSINESS <span>/</span> EVENT</p>
+                        <h2 class="section-title mb-1" id="qrClaimTitle">Scan a reward QR code</h2>
+                        <p class="small text-muted mb-0">Scan the code at a participating business or event to add its points to your wallet.</p>
+                    </div>
+                    <button class="btn btn-outline-success" id="startQrScanner" type="button" onclick="startQrScanner()">Open camera</button>
+                </div>
+                <div id="qrReader" class="qr-reader hidden"></div>
+                <div id="qrCameraMessage" class="small text-muted mt-2" role="status" aria-live="polite"></div>
+                <div class="qr-manual-entry">
+                    <label for="eventQrToken" class="form-label">Or enter the event code</label>
+                    <div class="qr-entry-controls">
+                        <input type="text" class="form-control" id="eventQrToken" autocomplete="off" placeholder="Event QR code">
+                        <button class="btn btn-success" type="button" onclick="claimEventQr()">Claim points</button>
+                    </div>
+                </div>
+                <div id="qrClaimMessage" class="small mt-3" role="status" aria-live="polite"></div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row g-3">
         <div class="col-lg-5">
             <div class="card p-4">
                 <h5 class="section-title mb-3">Challenges</h5>
@@ -118,6 +167,80 @@
                 <h5 class="section-title mb-3">Rewards Catalog</h5>
                 <div id="rewardList" class="d-grid gap-2"></div>
                 <div id="rewardMessage" class="mt-3 text-info"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card p-4">
+                <h5 class="section-title mb-3">Forecast & Trend</h5>
+                <div id="forecastSummary" class="small text-muted">Loading...</div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card p-4">
+                <h5 class="section-title mb-3">Notifications</h5>
+                <div id="notificationList" class="list-group"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 hidden" id="adminFeaturePanel">
+        <div class="col-12">
+            <section class="card p-4">
+                <div class="qr-admin-heading">
+                    <div>
+                        <p class="site-eyebrow">PARTNERS <span>/</span> CAMPAIGNS</p>
+                        <h2 class="section-title mb-1">Business &amp; event QR rewards</h2>
+                    </div>
+                </div>
+                <form id="qrEventForm" class="qr-event-form" onsubmit="createQrEvent(event)">
+                    <div>
+                        <label class="form-label" for="qrBusinessName">Business</label>
+                        <input class="form-control" id="qrBusinessName" maxlength="120" required placeholder="Green Market">
+                    </div>
+                    <div>
+                        <label class="form-label" for="qrEventName">Event or offer</label>
+                        <input class="form-control" id="qrEventName" maxlength="150" required placeholder="Community Cleanup">
+                    </div>
+                    <div>
+                        <label class="form-label" for="qrRewardPoints">Points</label>
+                        <input class="form-control" id="qrRewardPoints" type="number" min="1" max="10000" step="1" required value="50">
+                    </div>
+                    <div>
+                        <label class="form-label" for="qrExpiryHours">Expires in (hours)</label>
+                        <input class="form-control" id="qrExpiryHours" type="number" min="1" max="720" step="1" required value="24">
+                    </div>
+                    <button class="btn btn-success" id="createQrEventButton" type="submit">Create QR reward</button>
+                </form>
+                <div id="qrEventMessage" class="small mt-3" role="status" aria-live="polite"></div>
+                <div id="adminQrEventList" class="qr-event-list"></div>
+            </section>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card p-4">
+                <h5 class="section-title mb-3">Moderation Queue</h5>
+                <div id="moderationList" class="list-group"></div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card p-4">
+                <h5 class="section-title mb-3">Audit Logs</h5>
+                <div id="auditLogList" class="list-group"></div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="section-title mb-0">Registered Users</h5>
+                    <button class="btn btn-sm btn-success" onclick="loadAdminUsers()">Refresh</button>
+                </div>
+                <div id="adminUserList" class="list-group"></div>
             </div>
         </div>
     </div>
@@ -139,9 +262,10 @@
     </div>
 </div>
 
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     const API_BASE = '/api';
-    let token = localStorage.getItem('eco_token');
+    let token = sessionStorage.getItem('eco_admin_token') || localStorage.getItem('eco_token');
 
     if (token) {
         showDashboard();
@@ -149,6 +273,16 @@
 
     function authHeaders() {
         return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    }
+
+    function getUserRole() {
+        if (!token) return 'User';
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1] || ''));
+            return payload.role || 'User';
+        } catch (e) {
+            return 'User';
+        }
     }
 
     function setMessage(elementId, text, type = 'success') {
@@ -196,6 +330,7 @@
 
     function logout() {
         localStorage.removeItem('eco_token');
+        sessionStorage.removeItem('eco_admin_token');
         token = null;
         document.getElementById('authSection').classList.remove('hidden');
         document.getElementById('dashboardSection').classList.add('hidden');
@@ -222,6 +357,13 @@
             const impactText = dashboard.impact ? Object.entries(dashboard.impact.total_impact || {}).map(([k, v]) => `${k}: ${v.toFixed(2)}`).join(' • ') || 'No impact yet' : 'No impact yet';
             document.getElementById('impactSummary').innerHTML = `<div>${impactText}</div>`;
 
+            const forecastHtml = dashboard.impact && dashboard.impact.forecast ? `
+                <div><strong>Weekly:</strong> ${dashboard.impact.forecast.weekly_estimate} pts</div>
+                <div><strong>Monthly:</strong> ${dashboard.impact.forecast.monthly_estimate} pts</div>
+                <div><strong>Status:</strong> ${dashboard.impact.forecast.status}</div>
+            ` : '<div>No forecast data yet.</div>';
+            document.getElementById('forecastSummary').innerHTML = forecastHtml;
+
             const challengeRes = await fetch(`${API_BASE}/challenges/`, { headers: authHeaders() });
             const challengeData = await challengeRes.json();
             renderChallenges(challengeData.challenges || []);
@@ -235,11 +377,305 @@
             const activityData = await activityRes.json();
             renderActivities(activityData.activities || []);
 
+            const notificationsRes = await fetch(`${API_BASE}/notifications`, { headers: authHeaders() });
+            const notificationsData = await notificationsRes.json();
+            renderNotifications(notificationsData.notifications || []);
+
             const leaderboardRes = await fetch(`${API_BASE}/leaderboard`, { headers: authHeaders() });
             const leaderboardData = await leaderboardRes.json();
             renderLeaderboard(leaderboardData.leaderboard || []);
+
+            const role = getUserRole();
+            const adminPanel = document.getElementById('adminFeaturePanel');
+            if (role === 'Admin') {
+                adminPanel.classList.remove('hidden');
+                const moderationRes = await fetch(`${API_BASE}/admin/moderation`, { headers: authHeaders() });
+                const moderationData = await moderationRes.json();
+                renderModeration(moderationData.flagged || []);
+
+                const auditRes = await fetch(`${API_BASE}/admin/audit-logs`, { headers: authHeaders() });
+                const auditData = await auditRes.json();
+                renderAuditLogs(auditData.audit_logs || []);
+
+                await loadAdminUsers();
+                await loadAdminQrEvents();
+            } else {
+                adminPanel.classList.add('hidden');
+            }
         } catch (error) {
             console.error(error);
+        }
+    }
+
+    let qrScanner = null;
+    const qrImageUrls = [];
+
+    async function startQrScanner() {
+        const message = document.getElementById('qrCameraMessage');
+        if (typeof Html5Qrcode === 'undefined') {
+            message.textContent = 'Camera scanner is unavailable. Enter the event code below instead.';
+            return;
+        }
+
+        const reader = document.getElementById('qrReader');
+        reader.classList.remove('hidden');
+        message.textContent = 'Allow camera access to scan an event QR code.';
+        qrScanner = qrScanner || new Html5Qrcode('qrReader');
+        try {
+            await qrScanner.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                async decodedText => {
+                    document.getElementById('eventQrToken').value = decodedText.trim();
+                    await stopQrScanner();
+                    await claimEventQr();
+                },
+                () => {}
+            );
+            message.textContent = 'Camera is active. Point it at the event QR code.';
+        } catch (error) {
+            reader.classList.add('hidden');
+            message.textContent = 'Could not open the camera. Check browser permission or enter the event code below.';
+        }
+    }
+
+    async function stopQrScanner() {
+        if (qrScanner && qrScanner.isScanning) {
+            await qrScanner.stop();
+            qrScanner.clear();
+        }
+        document.getElementById('qrReader').classList.add('hidden');
+        document.getElementById('qrCameraMessage').textContent = '';
+    }
+
+    async function claimEventQr() {
+        const input = document.getElementById('eventQrToken');
+        const message = document.getElementById('qrClaimMessage');
+        const qrToken = input.value.trim();
+        if (!qrToken) {
+            message.textContent = 'Enter or scan an event QR code first.';
+            message.className = 'small mt-3 text-danger';
+            return;
+        }
+
+        const response = await fetch(`${API_BASE}/verify/qr`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ qr_token: qrToken })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            message.textContent = data.error || data.message || 'QR code could not be claimed.';
+            message.className = 'small mt-3 text-danger';
+            return;
+        }
+
+        message.textContent = data.points_awarded
+            ? `You earned ${data.points_awarded} points at ${data.business_name}.`
+            : (data.message || 'QR code verified.');
+        message.className = 'small mt-3 text-success';
+        input.value = '';
+        await loadDashboardData();
+    }
+
+    async function createQrEvent(event) {
+        event.preventDefault();
+        const button = document.getElementById('createQrEventButton');
+        const message = document.getElementById('qrEventMessage');
+        button.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE}/admin/qr-events`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    business_name: document.getElementById('qrBusinessName').value.trim(),
+                    event_name: document.getElementById('qrEventName').value.trim(),
+                    reward_points: Number(document.getElementById('qrRewardPoints').value),
+                    expires_in_hours: Number(document.getElementById('qrExpiryHours').value)
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                message.textContent = data.error || 'Could not create QR reward.';
+                message.className = 'small mt-3 text-danger';
+                return;
+            }
+
+            message.textContent = 'QR reward created. Print the QR image for the business or event.';
+            message.className = 'small mt-3 text-success';
+            document.getElementById('qrEventForm').reset();
+            document.getElementById('qrRewardPoints').value = 50;
+            document.getElementById('qrExpiryHours').value = 24;
+            await loadAdminQrEvents();
+        } catch (error) {
+            message.textContent = 'QR reward service is unavailable.';
+            message.className = 'small mt-3 text-danger';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function loadAdminQrEvents() {
+        if (getUserRole() !== 'Admin') return;
+        const response = await fetch(`${API_BASE}/admin/qr-events`, { headers: authHeaders() });
+        const data = await response.json();
+        renderAdminQrEvents(data.qr_events || []);
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
+    }
+
+    async function renderAdminQrEvents(events) {
+        const container = document.getElementById('adminQrEventList');
+        qrImageUrls.splice(0).forEach(url => URL.revokeObjectURL(url));
+        if (!events.length) {
+            container.innerHTML = '<p class="small text-muted qr-empty">No QR rewards created yet.</p>';
+            return;
+        }
+
+        container.innerHTML = events.map(item => `
+            <article class="qr-event-item">
+                <div class="qr-event-image-wrap"><img id="qr-image-${item.event_id}" alt="QR code for ${escapeHtml(item.event_name)}" class="qr-event-image"></div>
+                <div class="qr-event-details">
+                    <div class="qr-event-title-row">
+                        <div><strong>${escapeHtml(item.event_name)}</strong><div class="small text-muted">${escapeHtml(item.business_name)}</div></div>
+                        <span class="mini-pill">${item.active ? 'Active' : 'Inactive'}</span>
+                    </div>
+                    <div class="small text-muted mt-2">${item.reward_points} points · ${item.claims} claims · Expires ${new Date(item.expires_at).toLocaleString()}</div>
+                    <code class="qr-code-text">${escapeHtml(item.qr_token)}</code>
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+                        <button class="btn btn-sm btn-outline-success" onclick="downloadQrEvent(${item.event_id})">Download QR</button>
+                        ${item.active ? `<button class="btn btn-sm btn-outline-danger" onclick="deactivateQrEvent(${item.event_id})">Deactivate</button>` : ''}
+                    </div>
+                </div>
+            </article>
+        `).join('');
+
+        await Promise.all(events.map(async item => {
+            const response = await fetch(`${API_BASE}/admin/qr-events/${item.event_id}/qr`, { headers: authHeaders() });
+            if (!response.ok) return;
+            const url = URL.createObjectURL(await response.blob());
+            qrImageUrls.push(url);
+            const image = document.getElementById(`qr-image-${item.event_id}`);
+            if (image) image.src = url;
+        }));
+    }
+
+    async function downloadQrEvent(eventId) {
+        const response = await fetch(`${API_BASE}/admin/qr-events/${eventId}/qr`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ecosphere-event-${eventId}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function deactivateQrEvent(eventId) {
+        const response = await fetch(`${API_BASE}/admin/qr-events/${eventId}`, {
+            method: 'PATCH',
+            headers: authHeaders(),
+            body: JSON.stringify({ active: false })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.error || 'Could not deactivate this QR reward.');
+            return;
+        }
+        await loadAdminQrEvents();
+    }
+
+    async function loadAdminUsers() {
+        if (getUserRole() !== 'Admin') return;
+
+        const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
+        const data = await res.json();
+        const list = document.getElementById('adminUserList');
+
+        if (!res.ok || !data.users || !data.users.length) {
+            list.innerHTML = '<div class="text-muted">No registered users found.</div>';
+            return;
+        }
+
+        list.innerHTML = data.users.map(user => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <strong>${user.name}</strong><br>
+                        <small class="text-muted">${user.email}</small><br>
+                        <small class="text-muted">Role: ${user.role_name || 'User'} • Level ${user.level} • Score ${Number(user.eco_score || 0).toFixed(1)}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="mini-pill">${user.account_status || 'active'}</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap mt-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewUserProgress(${user.user_id})">View progress</button>
+                    <input type="password" class="form-control form-control-sm" style="max-width: 180px;" id="reset-${user.user_id}" placeholder="New password">
+                    <button class="btn btn-sm btn-warning" onclick="resetUserPassword(${user.user_id})">Reset</button>
+                    <button class="btn btn-sm btn-danger" onclick="terminateUser(${user.user_id})">Terminate</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function viewUserProgress(userId) {
+        const res = await fetch(`${API_BASE}/admin/users/${userId}/progress`, { headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.error || 'Could not load progress');
+            return;
+        }
+
+        const summary = data.progress || {};
+        const recent = (summary.recent_activity || []).slice(0, 5).map(item => `
+            <div class="small text-muted">• ${item.activity_name}: ${item.points} pts / ${item.quantity}</div>
+        `).join('') || '<div class="small text-muted">No recent activity.</div>';
+
+        alert(`User: ${data.name}\nTotal activities: ${summary.total_activities}\nTotal points: ${summary.total_points}\nTotal quantity: ${summary.total_quantity}\n\nRecent activity:\n${recent}`);
+    }
+
+    async function resetUserPassword(userId) {
+        const input = document.getElementById(`reset-${userId}`);
+        const password = input ? input.value : '';
+        if (!password || password.length < 6) {
+            alert('Password must be at least 6 characters.');
+            return;
+        }
+
+        const res = await fetch(`${API_BASE}/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('Password reset successful.');
+            input.value = '';
+        } else {
+            alert(data.error || 'Password reset failed.');
+        }
+    }
+
+    async function terminateUser(userId) {
+        if (!confirm('Terminate this account? This will block the user from logging in.')) {
+            return;
+        }
+
+        const res = await fetch(`${API_BASE}/admin/users/${userId}/terminate`, {
+            method: 'POST',
+            headers: authHeaders()
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('User account terminated successfully.');
+            await loadAdminUsers();
+        } else {
+            alert(data.error || 'Termination failed.');
         }
     }
 
@@ -295,6 +731,61 @@
                     <span class="mini-pill">${activity.status}</span>
                 </div>
                 <div class="small text-muted">${activity.quantity} • ${activity.points} pts</div>
+            </div>
+        `).join('');
+    }
+
+    function renderNotifications(notifications) {
+        const container = document.getElementById('notificationList');
+        if (!notifications.length) {
+            container.innerHTML = '<div class="text-muted">No notifications yet.</div>';
+            return;
+        }
+
+        container.innerHTML = notifications.slice(0, 6).map(item => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>${item.type}</strong>
+                    <span class="mini-pill">${item.is_read ? 'Read' : 'New'}</span>
+                </div>
+                <div class="small text-muted mt-2">${item.message}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderModeration(flagged) {
+        const container = document.getElementById('moderationList');
+        if (!flagged.length) {
+            container.innerHTML = '<div class="text-muted">No flagged submissions.</div>';
+            return;
+        }
+
+        container.innerHTML = flagged.map(item => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                    <strong>Record #${item.record_id}</strong>
+                    <span class="mini-pill">${item.risk_score.toFixed(1)} risk</span>
+                </div>
+                <div class="small text-muted mt-2">${item.reason}</div>
+                <div class="small text-muted">User ${item.user_id} • ${item.activity_name}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderAuditLogs(logs) {
+        const container = document.getElementById('auditLogList');
+        if (!logs.length) {
+            container.innerHTML = '<div class="text-muted">No audit records yet.</div>';
+            return;
+        }
+
+        container.innerHTML = logs.slice(0, 8).map(log => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                    <strong>${log.action}</strong>
+                    <span class="mini-pill">${log.entity_type}</span>
+                </div>
+                <div class="small text-muted mt-2">Actor: ${log.actor_id || 'system'} • ${log.details || 'No details'}</div>
             </div>
         `).join('');
     }

@@ -4,3 +4,4 @@ mysql-connector-python
 Flask-Bcrypt
 PyJWT
 python-dotenv
+qrcode[pil]>=7.4

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Administrator Sign In | EcoSphere</title>
+    <link rel="stylesheet" href="/static/admin_login.css">
+    <script src="/static/admin_login.js" defer></script>
+</head>
+<body>
+    <main class="login-shell">
+        <section class="brand-panel" aria-label="EcoSphere administration">
+            <a class="brand" href="/" aria-label="EcoSphere home">
+                <span class="brand-mark" aria-hidden="true">E</span>
+                <span>EcoSphere</span>
+            </a>
+            <div class="brand-copy">
+                <p class="eyebrow">CONTROL ROOM <span> / </span> 01</p>
+                <h1>Administrator<br>access.</h1>
+                <p class="brand-note">A separate sign-in for the people who keep the community moving.</p>
+            </div>
+            <div class="panel-foot">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span>Protected access</span>
+                <span class="panel-foot-right">ECOSPHERE REWARDS</span>
+            </div>
+        </section>
+
+        <section class="form-panel" aria-labelledby="form-title">
+            <div class="form-topline">
+                <span>ADMINISTRATOR SIGN IN</span>
+                <span class="access-tag">ADMIN ONLY</span>
+            </div>
+
+            <div class="form-content">
+                <p class="eyebrow form-eyebrow">WELCOME BACK</p>
+                <h2 id="form-title">Sign in to continue</h2>
+                <p class="form-intro">Use your administrator account credentials.</p>
+
+                <form id="adminLoginForm" novalidate>
+                    <label for="email">Email address</label>
+                    <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required maxlength="150" autofocus>
+
+                    <div class="password-label-row">
+                        <label for="password">Password</label>
+                        <button class="visibility-toggle" id="passwordToggle" type="button" aria-controls="password" aria-pressed="false">Show</button>
+                    </div>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+                    <button class="submit-button" id="submitButton" type="submit">
+                        <span>Sign in securely</span>
+                        <span aria-hidden="true">&#8594;</span>
+                    </button>
+                    <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
+                </form>
+
+                <div class="security-note">
+                    <span class="lock-icon" aria-hidden="true"></span>
+                    <p>Admin access is verified by the server. Sessions expire after 60 minutes.</p>
+                </div>
+            </div>
+
+            <a class="back-link" href="/">&#8592; Back to EcoSphere</a>
+        </section>
+    </main>
+</body>
+</html>

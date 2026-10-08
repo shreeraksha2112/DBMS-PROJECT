@@ -1,5 +1,6 @@
 from repositories.db import db
 from datetime import datetime
+from sqlalchemy import UniqueConstraint
 
 
 class Role(db.Model):
@@ -17,6 +18,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     eco_score = db.Column(db.Float, default=0.0)
     level = db.Column(db.Integer, default=1)
+    account_status = db.Column(db.String(50), default='active')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     role = db.relationship('Role', backref=db.backref('users', lazy=True))
@@ -61,6 +63,9 @@ class EcoActivity(db.Model):
     quantity = db.Column(db.Float, nullable=False)
     points = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default='pending')
+    is_flagged = db.Column(db.Boolean, default=False)
+    risk_score = db.Column(db.Float, default=0.0)
+    flag_reason = db.Column(db.String(255), default='')
     activity_date = db.Column(db.DateTime, default=datetime.utcnow)
 
     activity_type = db.relationship('ActivityType')
@@ -149,3 +154,46 @@ class Redemption(db.Model):
     points_used = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default='completed')
     redeemed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class QREvent(db.Model):
+    __tablename__ = 'qr_events'
+    event_id = db.Column(db.Integer, primary_key=True)
+    business_name = db.Column(db.String(120), nullable=False)
+    event_name = db.Column(db.String(150), nullable=False)
+    qr_token = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    reward_points = db.Column(db.Float, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class QRClaim(db.Model):
+    __tablename__ = 'qr_claims'
+    __table_args__ = (UniqueConstraint('event_id', 'user_id', name='uq_qr_claim_event_user'),)
+    claim_id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('qr_events.event_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    claimed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    notification_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    notification_type = db.Column(db.String(50), nullable=False, default='info')
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+    log_id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=True)
+    action = db.Column(db.String(100), nullable=False)
+    entity_type = db.Column(db.String(50), nullable=False)
+    entity_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

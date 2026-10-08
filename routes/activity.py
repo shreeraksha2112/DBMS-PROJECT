@@ -6,6 +6,7 @@ from services.impact_service import calculate_activity_impact
 from services.wallet_service import credit_wallet
 from services.gamification_service import update_user_gamification
 from services.recommendation_service import update_challenge_progress
+from services.verification_service import evaluate_activity_anomaly, create_notification, log_audit_event
 
 activity_bp = Blueprint('activity', __name__)
 
@@ -51,7 +52,16 @@ def submit_activity(current_user):
         ))
         impact_results.append({"metric": factor.metric_type, "value": impact_value})
 
-    if status == 'approved':
+    anomaly = evaluate_activity_anomaly(current_user.user_id, activity_id, quantity, eco_activity.record_id)
+    eco_activity.is_flagged = anomaly['flagged']
+    eco_activity.risk_score = anomaly['risk_score']
+    eco_activity.flag_reason = anomaly['reason']
+    if anomaly['flagged']:
+        eco_activity.status = 'flagged'
+        create_notification(current_user.user_id, 'warning', 'Activity flagged for review by moderation team.')
+        log_audit_event(current_user.user_id, 'activity_flagged', 'eco_activity', eco_activity.record_id, anomaly['reason'])
+
+    if status == 'approved' and not anomaly['flagged']:
         credit_wallet(current_user.user_id, points, eco_activity.record_id, transaction_type='credit')
         update_user_gamification(current_user, points)
         update_challenge_progress(current_user.user_id, activity_id, quantity)
@@ -60,9 +70,11 @@ def submit_activity(current_user):
 
     return jsonify({
         "message": "Activity submitted successfully",
-        "status": status,
+        "status": eco_activity.status,
         "points_earned": float(points),
         "impact": impact_results,
+        "flagged": anomaly['flagged'],
+        "risk_score": anomaly['risk_score'],
     }), 201
 
 

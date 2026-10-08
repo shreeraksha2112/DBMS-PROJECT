@@ -1,10 +1,39 @@
 from flask import Flask, request, render_template, jsonify
+from sqlalchemy import inspect, text
 from config import Config
 from repositories.db import db
+from repositories.models import Notification, QREvent
+
+
+def ensure_schema_compatibility(engine):
+    migrations = {
+        'users': {
+            'account_status': "VARCHAR(50) NOT NULL DEFAULT 'active'",
+        },
+        'eco_activities': {
+            'is_flagged': 'BOOLEAN NOT NULL DEFAULT FALSE',
+            'risk_score': 'FLOAT DEFAULT 0',
+            'flag_reason': "VARCHAR(255) DEFAULT ''",
+        },
+    }
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    for table_name, columns in migrations.items():
+        if table_name not in tables:
+            continue
+        existing_columns = {column['name'] for column in inspector.get_columns(table_name)}
+        for column_name, definition in columns.items():
+            if column_name not in existing_columns:
+                with engine.begin() as connection:
+                    connection.execute(text(
+                        f'ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}'
+                    ))
+                existing_columns.add(column_name)
 
 
 def seed_default_data():
-    from repositories.models import Role, ActivityType, ImpactFactor, Challenge, Reward
+    from repositories.models import Role, ActivityType, ImpactFactor, Challenge, Reward, Notification
     from datetime import datetime, timedelta
 
     if not Role.query.filter_by(role_name='User').first():
@@ -51,6 +80,7 @@ def create_app(config_class=Config):
     with app.app_context():
         from repositories import models
         db.create_all()
+        ensure_schema_compatibility(db.engine)
         seed_default_data()
 
     from routes.auth import auth_bp, token_required
@@ -69,10 +99,33 @@ def create_app(config_class=Config):
     from services.wallet_service import get_wallet_summary
     from services.recommendation_service import get_recommendations_for_user
     from services.verification_service import verify_qr_event
+    from services.qr_reward_service import QRRewardError, claim_qr_reward
 
     @app.route('/')
     def index():
         return render_template('index.html')
+
+    @app.route('/admin/login')
+    def admin_login_page():
+        return render_template('admin_login.html')
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Referrer-Policy', 'no-referrer')
+        response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+        if request.path == '/admin/login':
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; "
+                "connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+            )
+            response.headers['Cache-Control'] = 'no-store'
+        elif request.path.startswith('/api/auth/'):
+            response.headers['Cache-Control'] = 'no-store'
+
+        return response
 
     @app.route('/api/dashboard')
     @token_required
@@ -104,6 +157,20 @@ def create_app(config_class=Config):
     def leaderboard_endpoint(current_user):
         return jsonify({"leaderboard": get_leaderboard(limit=10)}), 200
 
+    @app.route('/api/notifications', methods=['GET'])
+    @token_required
+    def notifications_endpoint(current_user):
+        notifications = Notification.query.filter_by(user_id=current_user.user_id).order_by(Notification.created_at.desc()).all()
+        return jsonify({
+            "notifications": [{
+                "notification_id": item.notification_id,
+                "type": item.notification_type,
+                "message": item.message,
+                "is_read": item.is_read,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            } for item in notifications]
+        }), 200
+
     @app.route('/api/verify/qr', methods=['POST'])
     @token_required
     def verify_qr_endpoint(current_user):
@@ -111,6 +178,16 @@ def create_app(config_class=Config):
         qr_token = data.get('qr_token') or data.get('token')
         if not qr_token:
             return jsonify({"error": "Missing QR token"}), 400
+
+        if not isinstance(qr_token, str):
+            return jsonify({"error": "QR token must be a string"}), 400
+        qr_token = qr_token.strip()
+        if QREvent.query.filter_by(qr_token=qr_token).first():
+            try:
+                return jsonify(claim_qr_reward(current_user.user_id, qr_token)), 200
+            except QRRewardError as exc:
+                return jsonify({"error": str(exc)}), exc.status_code
+
         result = verify_qr_event(current_user.user_id, qr_token)
         if result['verified']:
             return jsonify(result), 200

@@ -12,7 +12,7 @@ def calculate_activity_impact(activity_id, quantity):
 
 
 def get_user_impact_summary(user_id):
-    activities = EcoActivity.query.filter_by(user_id=user_id).all()
+    activities = EcoActivity.query.filter_by(user_id=user_id).order_by(EcoActivity.activity_date.desc()).all()
     total_impact = {}
     total_points = 0.0
     for activity in activities:
@@ -20,10 +20,25 @@ def get_user_impact_summary(user_id):
         for impact_record in ImpactRecord.query.filter_by(eco_activity_id=activity.record_id).all():
             total_impact[impact_record.metric_type] = total_impact.get(impact_record.metric_type, 0.0) + float(impact_record.impact_value)
 
+    recent_points = sum(float(activity.points) for activity in activities[:5])
+    total_activity_value = sum(float(activity.quantity) for activity in activities)
+    monthly_projection = float((recent_points / max(len(activities), 1)) * 30) if activities else 0.0
+    weekly_projection = float((recent_points / max(len(activities), 1)) * 7) if activities else 0.0
+
     return {
         "total_activities": len(activities),
         "total_points": total_points,
         "total_impact": total_impact,
+        "forecast": {
+            "monthly_estimate": round(monthly_projection, 2),
+            "weekly_estimate": round(weekly_projection, 2),
+            "status": "on_track" if monthly_projection > 0 else "low_activity",
+        },
+        "trend": {
+            "direction": "up" if recent_points >= 0 else "stable",
+            "change_pct": round(min(100.0, (recent_points / max(total_activity_value, 1.0)) * 100), 2),
+            "period": "30d",
+        },
         "recent_activity": [
             {
                 "record_id": activity.record_id,

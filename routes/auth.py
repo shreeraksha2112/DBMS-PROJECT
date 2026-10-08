@@ -2,13 +2,53 @@ from flask import Blueprint, request, jsonify, current_app
 from repositories.db import db
 from repositories.models import User, Role, UserProfile, Wallet
 from flask_bcrypt import Bcrypt
+from functools import wraps
+from threading import Lock
+import time
 import jwt
 import datetime
 
 auth_bp = Blueprint('auth', __name__)
 bcrypt = Bcrypt()
+_admin_login_attempts = {}
+_admin_login_lock = Lock()
+_admin_login_limit = 5
+_admin_login_window = 300
+_admin_login_lockout = 300
 
-from functools import wraps
+
+def _is_admin_login_locked(client_ip):
+    now = time.monotonic()
+    with _admin_login_lock:
+        attempt = _admin_login_attempts.get(client_ip)
+        return bool(attempt and attempt['locked_until'] > now)
+
+
+def _record_admin_login_failure(client_ip):
+    now = time.monotonic()
+    with _admin_login_lock:
+        attempt = _admin_login_attempts.get(client_ip)
+        if not attempt or now - attempt['window_started'] >= _admin_login_window:
+            attempt = {'count': 0, 'window_started': now, 'locked_until': 0}
+        attempt['count'] += 1
+        if attempt['count'] >= _admin_login_limit:
+            attempt['locked_until'] = now + _admin_login_lockout
+        _admin_login_attempts[client_ip] = attempt
+
+
+def _clear_admin_login_failures(client_ip):
+    with _admin_login_lock:
+        _admin_login_attempts.pop(client_ip, None)
+
+
+def _create_token(user, lifetime_hours):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return jwt.encode({
+        'user_id': user.user_id,
+        'role': user.role.role_name,
+        'iat': now,
+        'exp': now + datetime.timedelta(hours=lifetime_hours),
+    }, current_app.config['SECRET_KEY'], algorithm='HS256')
 
 def token_required(f):
     @wraps(f)
@@ -26,6 +66,10 @@ def token_required(f):
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["HS256"])
             current_user = User.query.filter_by(user_id=data['user_id']).first()
         except Exception as e:
+            return jsonify({'message': 'Token is invalid!'}), 401
+
+        if (current_user is None or current_user.account_status != 'active'
+                or data.get('role') != current_user.role.role_name):
             return jsonify({'message': 'Token is invalid!'}), 401
             
         return f(current_user, *args, **kwargs)
@@ -81,13 +125,42 @@ def login():
         
     user = User.query.filter_by(email=data['email']).first()
     
+    if user and user.account_status == 'terminated':
+        return jsonify({"error": "Account terminated by administrator"}), 403
+
     if user and bcrypt.check_password_hash(user.password_hash, data['password']):
-        token = jwt.encode({
-            'user_id': user.user_id,
-            'role': user.role.role_name,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-        }, current_app.config['SECRET_KEY'], algorithm='HS256')
+        if user.role.role_name == 'Admin':
+            return jsonify({"error": "Unable to sign in with these credentials."}), 401
+        token = _create_token(user, 24)
         
         return jsonify({"message": "Login successful", "token": token}), 200
         
     return jsonify({"error": "Invalid credentials"}), 401
+
+
+@auth_bp.route('/admin-login', methods=['POST'])
+def admin_login():
+    data = request.get_json(silent=True) or {}
+    email = data.get('email')
+    password = data.get('password')
+    if not isinstance(email, str) or not isinstance(password, str) or not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    client_ip = request.remote_addr or 'unknown'
+    if _is_admin_login_locked(client_ip):
+        response = jsonify({"error": "Unable to sign in. Try again later."})
+        response.headers['Retry-After'] = str(_admin_login_lockout)
+        return response, 429
+
+    user = User.query.filter_by(email=email.strip().lower()).first()
+    password_matches = user is not None and bcrypt.check_password_hash(user.password_hash, password)
+    if (not password_matches or user.account_status != 'active'
+            or user.role.role_name != 'Admin'):
+        _record_admin_login_failure(client_ip)
+        return jsonify({"error": "Unable to sign in with these credentials."}), 401
+
+    _clear_admin_login_failures(client_ip)
+    return jsonify({
+        "message": "Admin sign-in successful",
+        "token": _create_token(user, 1),
+    }), 200
