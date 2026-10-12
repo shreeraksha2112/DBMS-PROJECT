@@ -116,6 +116,58 @@ class EcoSphereFeatureTests(unittest.TestCase):
         redemption = self.client.post(f'/api/rewards/{reward_id}/redeem', headers=headers)
         self.assertEqual(redemption.status_code, 200, redemption.get_data(as_text=True))
 
+    def test_challenge_progress_completes_and_awards_bonus(self):
+        registration = self.client.post('/api/auth/register', json={
+            'name': 'Challenge Progress User',
+            'email': 'challenge.progress@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(registration.status_code, 201)
+        login = self.client.post('/api/auth/login', json={
+            'email': 'challenge.progress@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(login.status_code, 200)
+        headers = {'Authorization': 'Bearer ' + login.get_json()['token']}
+
+        challenges = self.client.get('/api/challenges/', headers=headers)
+        self.assertEqual(challenges.status_code, 200)
+        challenge = challenges.get_json()['challenges'][0]
+        self.assertEqual(challenge['status'], 'available')
+        self.assertFalse(challenge['joined'])
+
+        joined = self.client.post(
+            f"/api/challenges/{challenge['challenge_id']}/join",
+            headers=headers,
+        )
+        self.assertEqual(joined.status_code, 201, joined.get_data(as_text=True))
+        self.assertIn('Log eligible activities', joined.get_json()['message'])
+
+        progress = self.client.post(
+            '/api/activities/',
+            json={'activity_id': 1, 'quantity': 40},
+            headers=headers,
+        )
+        self.assertEqual(progress.status_code, 201)
+        challenges = self.client.get('/api/challenges/', headers=headers).get_json()['challenges']
+        self.assertEqual(challenges[0]['progress'], 40)
+        self.assertEqual(challenges[0]['status'], 'active')
+
+        completion = self.client.post(
+            '/api/activities/',
+            json={'activity_id': 1, 'quantity': 60},
+            headers=headers,
+        )
+        self.assertEqual(completion.status_code, 201)
+        challenges = self.client.get('/api/challenges/', headers=headers).get_json()['challenges']
+        self.assertEqual(challenges[0]['progress'], 100)
+        self.assertEqual(challenges[0]['status'], 'completed')
+        wallet = self.client.get('/api/wallet', headers=headers)
+        self.assertEqual(wallet.status_code, 200)
+        self.assertEqual(wallet.get_json()['balance'], 1050)
+        transactions = wallet.get_json()['transactions']
+        self.assertTrue(any(tx['transaction_type'] == 'challenge_reward' for tx in transactions))
+
     def test_admin_can_approve_and_reject_activities(self):
         with self.app.app_context():
             activity_type = ActivityType.query.filter_by(name='Cycling').first()
@@ -350,6 +402,13 @@ class EcoSphereFeatureTests(unittest.TestCase):
         claim = self.client.post('/api/verify/qr', json={'qr_token': event['qr_token']}, headers=user_headers)
         self.assertEqual(claim.status_code, 200, claim.get_data(as_text=True))
         self.assertEqual(claim.get_json()['points_awarded'], 75)
+
+        history = self.client.get('/api/qr-rewards/history', headers=user_headers)
+        self.assertEqual(history.status_code, 200, history.get_data(as_text=True))
+        history_data = history.get_json()
+        self.assertEqual(history_data['total_claims'], 1)
+        self.assertEqual(history_data['total_points'], 75)
+        self.assertEqual(history_data['claims'][0]['event_name'], 'Community Cleanup')
 
         duplicate = self.client.post('/api/verify/qr', json={'qr_token': event['qr_token']}, headers=user_headers)
         self.assertEqual(duplicate.status_code, 409)

@@ -85,6 +85,9 @@ def verify_activity(activity_id, method='manual', decision='approved', reviewer_
             user = User.query.get(activity.user_id)
             if user:
                 update_user_gamification(user, activity.points)
+            from services.recommendation_service import update_challenge_progress
+
+            update_challenge_progress(activity.user_id, activity.activity_id, activity.quantity)
         log_audit_event(reviewer_id or activity.user_id, 'activity_approved', 'eco_activity', activity.record_id, method)
     else:
         activity.status = 'rejected'

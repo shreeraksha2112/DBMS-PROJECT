@@ -2,7 +2,7 @@ from flask import Flask, request, render_template, jsonify
 from sqlalchemy import inspect, text
 from config import Config
 from repositories.db import db
-from repositories.models import Notification, QREvent
+from repositories.models import Notification, QREvent, QRClaim
 
 
 def ensure_schema_compatibility(engine):
@@ -169,6 +169,37 @@ def create_app(config_class=Config):
                 "is_read": item.is_read,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
             } for item in notifications]
+        }), 200
+
+    @app.route('/api/qr-rewards/history', methods=['GET'])
+    @token_required
+    def qr_reward_history_endpoint(current_user):
+        claims = db.session.query(QRClaim, QREvent).join(
+            QREvent, QRClaim.event_id == QREvent.event_id
+        ).filter(
+            QRClaim.user_id == current_user.user_id
+        ).order_by(
+            QRClaim.claimed_at.desc()
+        ).limit(20).all()
+        totals = db.session.query(
+            db.func.count(QRClaim.claim_id),
+            db.func.coalesce(db.func.sum(QREvent.reward_points), 0),
+        ).join(
+            QREvent, QRClaim.event_id == QREvent.event_id
+        ).filter(
+            QRClaim.user_id == current_user.user_id
+        ).first()
+
+        return jsonify({
+            "total_claims": int(totals[0] or 0),
+            "total_points": float(totals[1] or 0),
+            "claims": [{
+                "event_id": event.event_id,
+                "business_name": event.business_name,
+                "event_name": event.event_name,
+                "points": float(event.reward_points),
+                "claimed_at": claim.claimed_at.isoformat() if claim.claimed_at else None,
+            } for claim, event in claims],
         }), 200
 
     @app.route('/api/verify/qr', methods=['POST'])

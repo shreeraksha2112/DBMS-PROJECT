@@ -1,4 +1,6 @@
 from repositories.models import Challenge, UserChallenge
+from services.verification_service import create_notification, log_audit_event
+from services.wallet_service import credit_wallet
 
 
 def get_recommendations_for_user(user_id, limit=3):
@@ -28,4 +30,22 @@ def update_challenge_progress(user_id, activity_id, quantity):
             if user_challenge.progress >= challenge.target_value:
                 user_challenge.status = 'completed'
                 user_challenge.progress = challenge.target_value
+                credit_wallet(
+                    user_id,
+                    challenge.reward_points,
+                    reference_id=challenge.challenge_id,
+                    transaction_type='challenge_reward',
+                )
+                create_notification(
+                    user_id,
+                    'reward',
+                    f"Challenge completed: {challenge.title}. You earned {challenge.reward_points:g} points!",
+                )
+                log_audit_event(
+                    user_id,
+                    'challenge_completed',
+                    'challenge',
+                    challenge.challenge_id,
+                    challenge.title,
+                )
     return True
