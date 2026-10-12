@@ -3,14 +3,100 @@ import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request, send_file
+from sqlalchemy import func
 
 from repositories.db import db
 from repositories.models import EcoActivity, User, Role, AuditLog, QREvent, QRClaim
 from routes.auth import token_required, bcrypt
 from services.qr_reward_service import create_qr_image
-from services.verification_service import verify_activity
+from services.verification_service import verify_activity, log_audit_event, create_notification
 
 admin_bp = Blueprint('admin', __name__)
+
+
+@admin_bp.route('/analytics', methods=['GET'])
+@token_required
+def get_admin_analytics(current_user):
+    if current_user.role.role_name != 'Admin':
+        return jsonify({"error": "Admin access required"}), 403
+
+    try:
+        days = int(request.args.get('days', '30'))
+    except ValueError:
+        return jsonify({"error": "days must be 7, 30, or 90"}), 400
+    if days not in {7, 30, 90}:
+        return jsonify({"error": "days must be 7, 30, or 90"}), 400
+
+    today = datetime.utcnow().date()
+    start_date = datetime.combine(today - timedelta(days=days - 1), datetime.min.time())
+    labels = [(today - timedelta(days=offset)).isoformat() for offset in range(days - 1, -1, -1)]
+    daily_counts = {
+        'users': {},
+        'activities': {},
+        'qr_claims': {},
+    }
+
+    user_rows = db.session.query(
+        func.date(User.created_at), func.count(User.user_id)
+    ).filter(
+        User.created_at >= start_date
+    ).group_by(func.date(User.created_at)).all()
+    activity_rows = db.session.query(
+        func.date(EcoActivity.activity_date), func.count(EcoActivity.record_id)
+    ).filter(
+        EcoActivity.activity_date >= start_date
+    ).group_by(func.date(EcoActivity.activity_date)).all()
+    claim_rows = db.session.query(
+        func.date(QRClaim.claimed_at), func.count(QRClaim.claim_id)
+    ).filter(
+        QRClaim.claimed_at >= start_date
+    ).group_by(func.date(QRClaim.claimed_at)).all()
+
+    for key, rows in (
+        ('users', user_rows),
+        ('activities', activity_rows),
+        ('qr_claims', claim_rows),
+    ):
+        daily_counts[key] = {str(day)[:10]: count for day, count in rows}
+
+    status_rows = db.session.query(
+        EcoActivity.status, func.count(EcoActivity.record_id)
+    ).filter(
+        EcoActivity.activity_date >= start_date
+    ).group_by(EcoActivity.status).all()
+    event_rows = db.session.query(
+        QREvent.business_name,
+        QREvent.event_name,
+        func.count(QRClaim.claim_id),
+    ).join(
+        QRClaim, QRClaim.event_id == QREvent.event_id
+    ).filter(
+        QRClaim.claimed_at >= start_date
+    ).group_by(
+        QREvent.event_id, QREvent.business_name, QREvent.event_name
+    ).order_by(
+        func.count(QRClaim.claim_id).desc(), QREvent.event_id
+    ).limit(6).all()
+
+    return jsonify({
+        "days": days,
+        "labels": labels,
+        "daily": {
+            key: [daily_counts[key].get(day, 0) for day in labels]
+            for key in ('users', 'activities', 'qr_claims')
+        },
+        "activity_status": [
+            {"status": status or "unknown", "count": count}
+            for status, count in status_rows
+        ],
+        "qr_events": [
+            {
+                "label": f"{business_name}: {event_name}",
+                "claims": count,
+            }
+            for business_name, event_name, count in event_rows
+        ],
+    }), 200
 
 
 @admin_bp.route('/users', methods=['GET'])
@@ -240,7 +326,9 @@ def list_pending_activities(current_user):
     if current_user.role.role_name != 'Admin':
         return jsonify({"error": "Admin access required"}), 403
 
-    activities = EcoActivity.query.filter_by(status='pending').order_by(EcoActivity.activity_date.desc()).all()
+    activities = EcoActivity.query.filter(
+        EcoActivity.status.in_(['pending', 'flagged'])
+    ).order_by(EcoActivity.activity_date.desc()).all()
     return jsonify({
         "activities": [
             {
@@ -250,9 +338,61 @@ def list_pending_activities(current_user):
                 "quantity": float(activity.quantity),
                 "points": float(activity.points),
                 "status": activity.status,
+                "is_flagged": bool(activity.is_flagged),
+                "risk_score": float(activity.risk_score or 0.0),
+                "reason": activity.flag_reason or '',
+                "activity_date": activity.activity_date.isoformat() if activity.activity_date else None,
             }
             for activity in activities
         ]
+    }), 200
+
+
+@admin_bp.route('/activities/<int:record_id>/flag', methods=['PATCH'])
+@token_required
+def flag_activity(current_user, record_id):
+    if current_user.role.role_name != 'Admin':
+        return jsonify({"error": "Admin access required"}), 403
+
+    activity = EcoActivity.query.get(record_id)
+    if not activity:
+        return jsonify({"error": "Activity not found"}), 404
+    if activity.status not in {'pending', 'flagged'}:
+        return jsonify({"error": "Only activities awaiting review can be flagged"}), 409
+
+    data = request.get_json(silent=True) or {}
+    flagged = data.get('flagged')
+    if not isinstance(flagged, bool):
+        return jsonify({"error": "flagged must be a boolean"}), 400
+
+    reason = data.get('reason', '')
+    if not isinstance(reason, str) or len(reason.strip()) > 255:
+        return jsonify({"error": "reason must be a string of at most 255 characters"}), 400
+    if flagged and not reason.strip() and not activity.is_flagged:
+        return jsonify({"error": "A reason is required when flagging an activity"}), 400
+
+    activity.is_flagged = flagged
+    activity.status = 'flagged' if flagged else 'pending'
+    if flagged:
+        activity.flag_reason = reason.strip() or activity.flag_reason or 'Flagged for admin review'
+    else:
+        activity.flag_reason = ''
+    action = 'activity_flagged' if flagged else 'activity_unflagged'
+    details = activity.flag_reason or 'Flag cleared by administrator'
+    log_audit_event(current_user.user_id, action, 'eco_activity', activity.record_id, details)
+    if flagged:
+        create_notification(
+            activity.user_id,
+            'warning',
+            'Your eco activity has been flagged for administrator review.',
+        )
+    db.session.commit()
+    return jsonify({
+        "message": "Activity flag updated",
+        "record_id": activity.record_id,
+        "is_flagged": bool(activity.is_flagged),
+        "status": activity.status,
+        "reason": activity.flag_reason,
     }), 200
 
 
@@ -273,7 +413,8 @@ def review_activity(current_user, record_id):
         result = verify_activity(record_id, method=method, decision=decision, reviewer_id=current_user.user_id)
         return jsonify({"message": "Verification processed", "result": result}), 200
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 404
+        status_code = 404 if str(exc) == 'Activity not found' else 409
+        return jsonify({"error": str(exc)}), status_code
 
 
 @admin_bp.route('/moderation', methods=['GET'])

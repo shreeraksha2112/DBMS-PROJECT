@@ -189,6 +189,40 @@
 
     <div class="row g-3 hidden" id="adminFeaturePanel">
         <div class="col-12">
+            <section class="card p-4" aria-labelledby="adminAnalyticsTitle">
+                <div class="analytics-heading">
+                    <div>
+                        <p class="site-eyebrow">ADMIN <span>/</span> OVERVIEW</p>
+                        <h2 class="section-title mb-1" id="adminAnalyticsTitle">Community analytics</h2>
+                        <p class="small text-muted mb-0">Explore signups, activity reviews, and QR campaign engagement.</p>
+                    </div>
+                    <div class="analytics-range">
+                        <label class="form-label mb-1" for="analyticsDays">Date range</label>
+                        <select class="form-select form-select-sm" id="analyticsDays" onchange="loadAdminAnalytics()">
+                            <option value="7">Last 7 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+                </div>
+                <p id="analyticsMessage" class="small text-muted mt-3 mb-0" role="status" aria-live="polite"></p>
+                <div class="analytics-grid mt-3">
+                    <article class="analytics-chart-card">
+                        <h3>Daily growth and activity</h3>
+                        <div class="analytics-chart-wrap"><canvas id="adminTrendChart" role="img" aria-label="Daily user signups, eco activities, and QR claims"></canvas></div>
+                    </article>
+                    <article class="analytics-chart-card">
+                        <h3>Activity review status</h3>
+                        <div class="analytics-chart-wrap analytics-doughnut-wrap"><canvas id="adminStatusChart" role="img" aria-label="Eco activity submissions by review status"></canvas></div>
+                    </article>
+                    <article class="analytics-chart-card analytics-chart-wide">
+                        <h3>QR claims by campaign</h3>
+                        <div class="analytics-chart-wrap analytics-bar-wrap"><canvas id="adminQrChart" role="img" aria-label="QR reward claims grouped by event"></canvas></div>
+                    </article>
+                </div>
+            </section>
+        </div>
+        <div class="col-12">
             <section class="card p-4">
                 <div class="qr-admin-heading">
                     <div>
@@ -222,7 +256,11 @@
 
         <div class="col-lg-6">
             <div class="card p-4">
-                <h5 class="section-title mb-3">Moderation Queue</h5>
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                    <h5 class="section-title mb-0">Activity Review Queue</h5>
+                    <button class="btn btn-sm btn-success" onclick="loadAdminModeration()">Refresh</button>
+                </div>
+                <p id="moderationMessage" class="small text-muted mb-2" role="status" aria-live="polite"></p>
                 <div id="moderationList" class="list-group"></div>
             </div>
         </div>
@@ -262,10 +300,12 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     const API_BASE = '/api';
     let token = sessionStorage.getItem('eco_admin_token') || localStorage.getItem('eco_token');
+    let adminCharts = {};
 
     if (token) {
         showDashboard();
@@ -389,9 +429,8 @@
             const adminPanel = document.getElementById('adminFeaturePanel');
             if (role === 'Admin') {
                 adminPanel.classList.remove('hidden');
-                const moderationRes = await fetch(`${API_BASE}/admin/moderation`, { headers: authHeaders() });
-                const moderationData = await moderationRes.json();
-                renderModeration(moderationData.flagged || []);
+                await loadAdminAnalytics();
+                await loadAdminModeration();
 
                 const auditRes = await fetch(`${API_BASE}/admin/audit-logs`, { headers: authHeaders() });
                 const auditData = await auditRes.json();
@@ -404,6 +443,95 @@
             }
         } catch (error) {
             console.error(error);
+        }
+    }
+
+    async function loadAdminAnalytics() {
+        if (getUserRole() !== 'Admin') return;
+        const message = document.getElementById('analyticsMessage');
+        if (typeof Chart === 'undefined') {
+            message.textContent = 'Charts could not load. Check your connection and refresh the page.';
+            message.className = 'small text-danger mt-3 mb-0';
+            return;
+        }
+
+        try {
+            const days = document.getElementById('analyticsDays').value;
+            const response = await fetch(`${API_BASE}/admin/analytics?days=${encodeURIComponent(days)}`, {
+                headers: authHeaders()
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Could not load admin analytics.');
+            }
+            renderAdminAnalytics(data);
+            message.textContent = `Showing the last ${data.days} days. Hover over a chart for details.`;
+            message.className = 'small text-muted mt-3 mb-0';
+        } catch (error) {
+            console.error('Unable to load admin analytics:', error);
+            message.textContent = error.message || 'Could not load admin analytics.';
+            message.className = 'small text-danger mt-3 mb-0';
+        }
+    }
+
+    function renderAdminAnalytics(data) {
+        const colors = ['#3b7953', '#d7a94a', '#6d8791', '#a34b41', '#8b6aa8', '#56a6a1'];
+        const trendConfig = {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'New users', data: data.daily.users, borderColor: '#3b7953', backgroundColor: 'rgba(59, 121, 83, 0.12)', fill: true, tension: 0.3 },
+                    { label: 'Eco activities', data: data.daily.activities, borderColor: '#d7a94a', backgroundColor: 'rgba(215, 169, 74, 0.12)', fill: true, tension: 0.3 },
+                    { label: 'QR claims', data: data.daily.qr_claims, borderColor: '#6d8791', backgroundColor: 'rgba(109, 135, 145, 0.12)', fill: true, tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { tooltip: { enabled: true } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        };
+        const statusConfig = {
+            type: 'doughnut',
+            data: {
+                labels: data.activity_status.map(item => item.status),
+                datasets: [{ data: data.activity_status.map(item => item.count), backgroundColor: colors, borderWidth: 0 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' }, tooltip: { enabled: true } }
+            }
+        };
+        const qrConfig = {
+            type: 'bar',
+            data: {
+                labels: data.qr_events.map(item => item.label),
+                datasets: [{ label: 'Claims', data: data.qr_events.map(item => item.claims), backgroundColor: '#3b7953', borderRadius: 2 }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: true } },
+                scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        };
+
+        for (const [key, canvasId, config] of [
+            ['trend', 'adminTrendChart', trendConfig],
+            ['status', 'adminStatusChart', statusConfig],
+            ['qr', 'adminQrChart', qrConfig]
+        ]) {
+            if (adminCharts[key]) {
+                adminCharts[key].data = config.data;
+                adminCharts[key].update();
+            } else {
+                adminCharts[key] = new Chart(document.getElementById(canvasId), config);
+            }
         }
     }
 
@@ -756,20 +884,83 @@
     function renderModeration(flagged) {
         const container = document.getElementById('moderationList');
         if (!flagged.length) {
-            container.innerHTML = '<div class="text-muted">No flagged submissions.</div>';
+            container.innerHTML = '<div class="text-muted">No activities awaiting review.</div>';
             return;
         }
 
         container.innerHTML = flagged.map(item => `
             <div class="list-group-item">
-                <div class="d-flex justify-content-between">
-                    <strong>Record #${item.record_id}</strong>
-                    <span class="mini-pill">${item.risk_score.toFixed(1)} risk</span>
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                    <strong>Record #${item.record_id} · ${escapeHtml(item.activity_name)}</strong>
+                    <span class="mini-pill">${item.is_flagged ? 'Flagged · ' : ''}${Number(item.risk_score || 0).toFixed(1)} risk</span>
                 </div>
-                <div class="small text-muted mt-2">${item.reason}</div>
-                <div class="small text-muted">User ${item.user_id} • ${item.activity_name}</div>
+                <div class="small text-muted mt-2">${escapeHtml(item.reason || 'No moderation notes.')}</div>
+                <div class="small text-muted">User ${item.user_id} · ${Number(item.quantity).toLocaleString()} submitted · ${Number(item.points).toLocaleString()} points · ${escapeHtml(item.status)}</div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn btn-sm btn-success" onclick="reviewAdminActivity(${item.record_id}, 'approved')">Approve</button>
+                    <button class="btn btn-sm btn-danger" onclick="reviewAdminActivity(${item.record_id}, 'rejected')">Reject</button>
+                    ${item.is_flagged
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="setActivityFlag(${item.record_id}, false)">Clear flag</button>`
+                        : `<button class="btn btn-sm btn-outline-warning" onclick="setActivityFlag(${item.record_id}, true)">Flag for review</button>`}
+                </div>
             </div>
         `).join('');
+    }
+
+    async function loadAdminModeration() {
+        if (getUserRole() !== 'Admin') return;
+        const message = document.getElementById('moderationMessage');
+        try {
+            const response = await fetch(`${API_BASE}/admin/activities/pending`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load activities for review.');
+            renderModeration(data.activities || []);
+            message.textContent = `${(data.activities || []).length} activity submission(s) awaiting review.`;
+            message.className = 'small text-muted mb-2';
+        } catch (error) {
+            console.error('Unable to load activity review queue:', error);
+            message.textContent = error.message || 'Could not load activities for review.';
+            message.className = 'small text-danger mb-2';
+        }
+    }
+
+    async function reviewAdminActivity(recordId, decision) {
+        const response = await fetch(`${API_BASE}/admin/activities/${recordId}/review`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ decision, method: 'admin' })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            const message = document.getElementById('moderationMessage');
+            message.textContent = data.error || `Could not ${decision} this activity.`;
+            message.className = 'small text-danger mb-2';
+            return;
+        }
+        await loadAdminModeration();
+        await loadAdminAnalytics();
+    }
+
+    async function setActivityFlag(recordId, flagged) {
+        let reason = '';
+        if (flagged) {
+            reason = window.prompt('Why should this activity be flagged for review?') || '';
+            if (!reason.trim()) return;
+        }
+        const response = await fetch(`${API_BASE}/admin/activities/${recordId}/flag`, {
+            method: 'PATCH',
+            headers: authHeaders(),
+            body: JSON.stringify({ flagged, reason })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            const message = document.getElementById('moderationMessage');
+            message.textContent = data.error || 'Could not update the activity flag.';
+            message.className = 'small text-danger mb-2';
+            return;
+        }
+        await loadAdminModeration();
+        await loadAdminAnalytics();
     }
 
     function renderAuditLogs(logs) {

@@ -74,9 +74,12 @@ def verify_activity(activity_id, method='manual', decision='approved', reviewer_
     activity = EcoActivity.query.get(activity_id)
     if not activity:
         raise ValueError('Activity not found')
+    if activity.status not in {'pending', 'flagged'}:
+        raise ValueError('Activity has already been reviewed')
 
     if decision == 'approved':
         activity.status = 'approved'
+        activity.is_flagged = False
         wallet = credit_wallet(activity.user_id, activity.points, activity.record_id, transaction_type='credit')
         if wallet is not None:
             user = User.query.get(activity.user_id)
@@ -85,6 +88,7 @@ def verify_activity(activity_id, method='manual', decision='approved', reviewer_
         log_audit_event(reviewer_id or activity.user_id, 'activity_approved', 'eco_activity', activity.record_id, method)
     else:
         activity.status = 'rejected'
+        activity.is_flagged = False
         log_audit_event(reviewer_id or activity.user_id, 'activity_rejected', 'eco_activity', activity.record_id, method)
 
     db.session.commit()
@@ -94,6 +98,7 @@ def verify_activity(activity_id, method='manual', decision='approved', reviewer_
         "method": method,
         "decision": decision,
         "points": float(activity.points),
+        "is_flagged": bool(activity.is_flagged),
     }
 
 

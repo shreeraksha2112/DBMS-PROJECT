@@ -5,7 +5,10 @@ from sqlalchemy import create_engine, inspect, text
 
 from app import create_app, ensure_schema_compatibility
 from repositories.db import db
-from repositories.models import Role, ActivityType, ImpactFactor, Challenge, Reward
+from repositories.models import (
+    Role, ActivityType, ImpactFactor, Challenge, Reward, User, EcoActivity,
+    QREvent, QRClaim,
+)
 
 
 class TestConfig:
@@ -112,6 +115,111 @@ class EcoSphereFeatureTests(unittest.TestCase):
 
         redemption = self.client.post(f'/api/rewards/{reward_id}/redeem', headers=headers)
         self.assertEqual(redemption.status_code, 200, redemption.get_data(as_text=True))
+
+    def test_admin_can_approve_and_reject_activities(self):
+        with self.app.app_context():
+            activity_type = ActivityType.query.filter_by(name='Cycling').first()
+            activity_type.verification_required = True
+            admin_role = Role.query.filter_by(role_name='Admin').first()
+            if admin_role is None:
+                admin_role = Role(role_name='Admin')
+                db.session.add(admin_role)
+                db.session.commit()
+
+        admin_registration = self.client.post('/api/auth/register', json={
+            'name': 'Review Admin',
+            'email': 'review.admin@example.com',
+            'password': 'adminpass'
+        })
+        self.assertEqual(admin_registration.status_code, 201)
+        with self.app.app_context():
+            admin_user = db.session.query(__import__('repositories.models', fromlist=['User']).User).filter_by(email='review.admin@example.com').first()
+            admin_user.role_id = Role.query.filter_by(role_name='Admin').first().role_id
+            db.session.commit()
+
+        user_registration = self.client.post('/api/auth/register', json={
+            'name': 'Activity Reviewer Test',
+            'email': 'review.user@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(user_registration.status_code, 201)
+        user_login = self.client.post('/api/auth/login', json={
+            'email': 'review.user@example.com',
+            'password': 'userpass'
+        })
+        user_headers = {'Authorization': 'Bearer ' + user_login.get_json()['token']}
+
+        first = self.client.post('/api/activities/', json={'activity_id': 1, 'quantity': 2}, headers=user_headers)
+        second = self.client.post('/api/activities/', json={'activity_id': 1, 'quantity': 3}, headers=user_headers)
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.get_json()['status'], 'pending')
+        self.assertEqual(second.status_code, 201)
+
+        admin_login = self.client.post('/api/auth/admin-login', json={
+            'email': 'review.admin@example.com',
+            'password': 'adminpass'
+        })
+        admin_headers = {'Authorization': 'Bearer ' + admin_login.get_json()['token']}
+
+        unauthorized = self.client.get('/api/admin/activities/pending', headers=user_headers)
+        self.assertEqual(unauthorized.status_code, 403)
+        pending = self.client.get('/api/admin/activities/pending', headers=admin_headers)
+        self.assertEqual(pending.status_code, 200)
+        activities = pending.get_json()['activities']
+        self.assertEqual(len(activities), 2)
+        approved_id, rejected_id = [item['record_id'] for item in activities]
+
+        forbidden_flag = self.client.patch(
+            f'/api/admin/activities/{approved_id}/flag',
+            json={'flagged': True, 'reason': 'Needs review'},
+            headers=user_headers,
+        )
+        self.assertEqual(forbidden_flag.status_code, 403)
+        missing_reason = self.client.patch(
+            f'/api/admin/activities/{approved_id}/flag',
+            json={'flagged': True},
+            headers=admin_headers,
+        )
+        self.assertEqual(missing_reason.status_code, 400)
+        flagged = self.client.patch(
+            f'/api/admin/activities/{approved_id}/flag',
+            json={'flagged': True, 'reason': 'Unusual quantity pattern'},
+            headers=admin_headers,
+        )
+        self.assertEqual(flagged.status_code, 200, flagged.get_data(as_text=True))
+        self.assertTrue(flagged.get_json()['is_flagged'])
+
+        pending_after_flag = self.client.get('/api/admin/activities/pending', headers=admin_headers)
+        flagged_activity = next(item for item in pending_after_flag.get_json()['activities'] if item['record_id'] == approved_id)
+        self.assertEqual(flagged_activity['status'], 'flagged')
+        self.assertEqual(flagged_activity['reason'], 'Unusual quantity pattern')
+
+        cleared = self.client.patch(
+            f'/api/admin/activities/{approved_id}/flag',
+            json={'flagged': False},
+            headers=admin_headers,
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.get_data(as_text=True))
+        self.assertFalse(cleared.get_json()['is_flagged'])
+        self.assertEqual(cleared.get_json()['status'], 'pending')
+        flagged = self.client.patch(
+            f'/api/admin/activities/{approved_id}/flag',
+            json={'flagged': True, 'reason': 'Unusual quantity pattern'},
+            headers=admin_headers,
+        )
+        self.assertEqual(flagged.status_code, 200)
+
+        approve = self.client.post(f'/api/admin/activities/{approved_id}/review', json={'decision': 'approved'}, headers=admin_headers)
+        self.assertEqual(approve.status_code, 200, approve.get_data(as_text=True))
+        self.assertFalse(approve.get_json()['result'].get('is_flagged', False))
+        duplicate = self.client.post(f'/api/admin/activities/{approved_id}/review', json={'decision': 'approved'}, headers=admin_headers)
+        self.assertEqual(duplicate.status_code, 409)
+
+        reject = self.client.post(f'/api/admin/activities/{rejected_id}/review', json={'decision': 'rejected'}, headers=admin_headers)
+        self.assertEqual(reject.status_code, 200, reject.get_data(as_text=True))
+
+        wallet = self.client.get('/api/wallet', headers=user_headers)
+        self.assertEqual(wallet.get_json()['balance'], 30)
 
     def test_platform_feature_suite(self):
         with self.app.app_context():
@@ -314,6 +422,83 @@ class EcoSphereFeatureTests(unittest.TestCase):
             'password': 'newsecret'
         })
         self.assertEqual(disabled.status_code, 403)
+
+    def test_admin_analytics_requires_admin_and_returns_chart_series(self):
+        admin_registration = self.client.post('/api/auth/register', json={
+            'name': 'Analytics Admin',
+            'email': 'analytics.admin@example.com',
+            'password': 'adminpass'
+        })
+        self.assertEqual(admin_registration.status_code, 201)
+        with self.app.app_context():
+            admin = User.query.filter_by(email='analytics.admin@example.com').first()
+            admin_role = Role.query.filter_by(role_name='Admin').first()
+            if admin_role is None:
+                admin_role = Role(role_name='Admin')
+                db.session.add(admin_role)
+                db.session.flush()
+            admin.role_id = admin_role.role_id
+            db.session.commit()
+            admin_id = admin.user_id
+
+        user_registration = self.client.post('/api/auth/register', json={
+            'name': 'Analytics User',
+            'email': 'analytics.user@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(user_registration.status_code, 201)
+        user_login = self.client.post('/api/auth/login', json={
+            'email': 'analytics.user@example.com',
+            'password': 'userpass'
+        })
+        user_headers = {'Authorization': 'Bearer ' + user_login.get_json()['token']}
+        admin_login = self.client.post('/api/auth/admin-login', json={
+            'email': 'analytics.admin@example.com',
+            'password': 'adminpass'
+        })
+        admin_headers = {'Authorization': 'Bearer ' + admin_login.get_json()['token']}
+
+        with self.app.app_context():
+            user = User.query.filter_by(email='analytics.user@example.com').first()
+            activity_type = ActivityType.query.filter_by(name='Cycling').first()
+            event = QREvent(
+                business_name='Green Market',
+                event_name='Community Cleanup',
+                qr_token='analytics-test-token',
+                reward_points=25,
+                expires_at=datetime.utcnow() + timedelta(days=1),
+                created_by=admin_id,
+            )
+            db.session.add(event)
+            db.session.flush()
+            db.session.add(EcoActivity(
+                user_id=user.user_id,
+                activity_id=activity_type.activity_id,
+                quantity=2,
+                points=20,
+                status='approved',
+            ))
+            db.session.add(QRClaim(event_id=event.event_id, user_id=user.user_id))
+            db.session.commit()
+
+        forbidden = self.client.get('/api/admin/analytics?days=7', headers=user_headers)
+        self.assertEqual(forbidden.status_code, 403)
+        invalid_range = self.client.get('/api/admin/analytics?days=14', headers=admin_headers)
+        self.assertEqual(invalid_range.status_code, 400)
+        response = self.client.get('/api/admin/analytics?days=7', headers=admin_headers)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+
+        analytics = response.get_json()
+        self.assertEqual(analytics['days'], 7)
+        self.assertEqual(len(analytics['labels']), 7)
+        self.assertEqual(len(analytics['daily']['users']), 7)
+        self.assertEqual(analytics['daily']['activities'][-1], 1)
+        self.assertEqual(analytics['daily']['qr_claims'][-1], 1)
+        self.assertIn({'status': 'approved', 'count': 1}, analytics['activity_status'])
+        self.assertEqual(analytics['qr_events'][0], {
+            'label': 'Green Market: Community Cleanup',
+            'claims': 1,
+        })
 
     def test_dedicated_admin_login_security(self):
         register = self.client.post('/api/auth/register', json={
