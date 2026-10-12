@@ -5,3 +5,5 @@ Flask-Bcrypt
 PyJWT
 python-dotenv
 qrcode[pil]>=7.4
+gunicorn
+psycopg2-binary
