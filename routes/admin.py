@@ -1,3 +1,5 @@
+import csv
+from io import StringIO, BytesIO
 import math
 import secrets
 from datetime import datetime, timedelta
@@ -121,6 +123,72 @@ def list_users(current_user):
             for user in users
         ]
     }), 200
+
+
+@admin_bp.route('/exports/<string:dataset>.csv', methods=['GET'])
+@token_required
+def export_admin_csv(current_user, dataset):
+    if current_user.role.role_name != 'Admin':
+        return jsonify({"error": "Admin access required"}), 403
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    def write_row(values):
+        safe_values = [
+            "'" + value if isinstance(value, str) and value.startswith(('=', '+', '-', '@', '\t', '\r')) else value
+            for value in values
+        ]
+        writer.writerow(safe_values)
+
+    if dataset == 'users':
+        write_row(['user_id', 'name', 'email', 'role', 'account_status', 'eco_score', 'level', 'created_at'])
+        for user in User.query.order_by(User.created_at.desc()).all():
+            write_row([
+                user.user_id, user.name, user.email,
+                user.role.role_name if user.role else 'User',
+                user.account_status, user.eco_score or 0, user.level,
+                user.created_at.isoformat() if user.created_at else '',
+            ])
+        filename = 'ecosphere-users.csv'
+    elif dataset == 'activities':
+        write_row(['record_id', 'user_id', 'user_name', 'activity', 'quantity', 'points', 'status', 'is_flagged', 'activity_date'])
+        activities = EcoActivity.query.join(User, EcoActivity.user_id == User.user_id).order_by(
+            EcoActivity.activity_date.desc()
+        ).all()
+        for activity in activities:
+            write_row([
+                activity.record_id, activity.user_id, activity.user.name,
+                activity.activity_type.name, activity.quantity, activity.points,
+                activity.status, bool(activity.is_flagged),
+                activity.activity_date.isoformat() if activity.activity_date else '',
+            ])
+        filename = 'ecosphere-activities.csv'
+    elif dataset == 'qr-claims':
+        write_row(['claim_id', 'event_id', 'business_name', 'event_name', 'user_id', 'user_name', 'reward_points', 'claimed_at'])
+        claims = db.session.query(QRClaim, QREvent, User).join(
+            QREvent, QRClaim.event_id == QREvent.event_id
+        ).join(
+            User, QRClaim.user_id == User.user_id
+        ).order_by(QRClaim.claimed_at.desc()).all()
+        for claim, event, user in claims:
+            write_row([
+                claim.claim_id, event.event_id, event.business_name, event.event_name,
+                user.user_id, user.name, event.reward_points,
+                claim.claimed_at.isoformat() if claim.claimed_at else '',
+            ])
+        filename = 'ecosphere-qr-claims.csv'
+    else:
+        return jsonify({"error": "Unknown export. Choose users, activities, or qr-claims."}), 404
+
+    response = send_file(
+        BytesIO(output.getvalue().encode('utf-8-sig')),
+        mimetype='text/csv; charset=utf-8',
+        as_attachment=True,
+        download_name=filename,
+    )
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @admin_bp.route('/qr-events', methods=['GET'])

@@ -7,7 +7,7 @@ from app import create_app, ensure_schema_compatibility
 from repositories.db import db
 from repositories.models import (
     Role, ActivityType, ImpactFactor, Challenge, Reward, User, EcoActivity,
-    QREvent, QRClaim,
+    QREvent, QRClaim, Notification,
 )
 
 
@@ -167,6 +167,103 @@ class EcoSphereFeatureTests(unittest.TestCase):
         self.assertEqual(wallet.get_json()['balance'], 1050)
         transactions = wallet.get_json()['transactions']
         self.assertTrue(any(tx['transaction_type'] == 'challenge_reward' for tx in transactions))
+
+    def test_history_notifications_badges_leaderboard_and_reminders(self):
+        registration = self.client.post('/api/auth/register', json={
+            'name': 'History Feature User',
+            'email': 'history.features@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(registration.status_code, 201)
+        login = self.client.post('/api/auth/login', json={
+            'email': 'history.features@example.com',
+            'password': 'userpass'
+        })
+        headers = {'Authorization': 'Bearer ' + login.get_json()['token']}
+        user_id = registration.get_json()['user_id']
+
+        types = self.client.get('/api/activities/types', headers=headers)
+        self.assertEqual(types.status_code, 200)
+        self.assertEqual(types.get_json()['activity_types'][0]['name'], 'Cycling')
+
+        activity = self.client.post(
+            '/api/activities/',
+            json={'activity_id': 1, 'quantity': 5},
+            headers=headers,
+        )
+        self.assertEqual(activity.status_code, 201)
+        filtered = self.client.get(
+            '/api/activities/?activity_id=1&status=approved',
+            headers=headers,
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.get_json()['summary']['count'], 1)
+        self.assertEqual(filtered.get_json()['summary']['total_quantity'], 5)
+        self.assertEqual(filtered.get_json()['summary']['total_points'], 50)
+        invalid_filter = self.client.get('/api/activities/?status=unknown', headers=headers)
+        self.assertEqual(invalid_filter.status_code, 400)
+
+        badges = self.client.get('/api/badges', headers=headers)
+        self.assertEqual(badges.status_code, 200)
+        first_steps = next(item for item in badges.get_json()['badges'] if item['name'] == 'First Steps')
+        self.assertTrue(first_steps['earned'])
+
+        rewards = self.client.get('/api/rewards/', headers=headers).get_json()['rewards']
+        redemption = self.client.post(f"/api/rewards/{rewards[0]['reward_id']}/redeem", headers=headers)
+        self.assertEqual(redemption.status_code, 200)
+        history = self.client.get('/api/rewards/history', headers=headers)
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.get_json()['total_redemptions'], 1)
+        self.assertEqual(history.get_json()['total_points_spent'], rewards[0]['points_required'])
+
+        challenges = self.client.get('/api/challenges/', headers=headers).get_json()['challenges']
+        challenge = next(item for item in challenges if item['title'] == 'Cycling Century')
+        joined = self.client.post(f"/api/challenges/{challenge['challenge_id']}/join", headers=headers)
+        self.assertEqual(joined.status_code, 201)
+        leaderboard = self.client.get(
+            f"/api/challenges/{challenge['challenge_id']}/leaderboard",
+            headers=headers,
+        )
+        self.assertEqual(leaderboard.status_code, 200)
+        self.assertTrue(leaderboard.get_json()['leaderboard'][0]['is_current_user'])
+
+        with self.app.app_context():
+            reminder_challenge = Challenge(
+                title='Upcoming Community Cleanup',
+                type='personal',
+                target_value=10,
+                reward_points=20,
+                start_date=datetime.utcnow() + timedelta(hours=12),
+                end_date=datetime.utcnow() + timedelta(days=2),
+            )
+            db.session.add(reminder_challenge)
+            db.session.commit()
+            reminder_challenge_id = reminder_challenge.challenge_id
+        reminder = self.client.put(
+            f'/api/challenges/{reminder_challenge_id}/reminder',
+            headers=headers,
+        )
+        self.assertEqual(reminder.status_code, 200)
+        self.assertTrue(reminder.get_json()['reminder_enabled'])
+        self.client.get('/api/challenges/', headers=headers)
+        self.client.get('/api/challenges/', headers=headers)
+        with self.app.app_context():
+            reminder_notifications = Notification.query.filter_by(
+                user_id=user_id,
+                notification_type='challenge',
+            ).all()
+            self.assertEqual(len(reminder_notifications), 1)
+
+        notifications = self.client.get('/api/notifications', headers=headers)
+        self.assertEqual(notifications.status_code, 200)
+        self.assertGreater(notifications.get_json()['unread_count'], 0)
+        notification_id = notifications.get_json()['notifications'][0]['notification_id']
+        marked = self.client.patch(f'/api/notifications/{notification_id}/read', headers=headers)
+        self.assertEqual(marked.status_code, 200)
+        all_read = self.client.patch('/api/notifications/read-all', headers=headers)
+        self.assertEqual(all_read.status_code, 200)
+        unread = self.client.get('/api/notifications', headers=headers)
+        self.assertEqual(unread.get_json()['unread_count'], 0)
 
     def test_admin_can_approve_and_reject_activities(self):
         with self.app.app_context():
@@ -459,6 +556,35 @@ class EcoSphereFeatureTests(unittest.TestCase):
         payload = list_users.get_json()
         self.assertIn('users', payload)
         self.assertGreaterEqual(len(payload['users']), 2)
+
+        late_registration = self.client.post('/api/auth/register', json={
+            'name': 'Newly Registered User',
+            'email': 'newly.registered@example.com',
+            'password': 'userpass'
+        })
+        self.assertEqual(late_registration.status_code, 201)
+        refreshed_users = self.client.get('/api/admin/users', headers=admin_headers)
+        self.assertEqual(refreshed_users.status_code, 200)
+        refreshed_emails = [item['email'] for item in refreshed_users.get_json()['users']]
+        self.assertIn('newly.registered@example.com', refreshed_emails)
+        self.assertEqual(refreshed_emails[0], 'newly.registered@example.com')
+
+        user_login = self.client.post('/api/auth/login', json={
+            'email': 'newly.registered@example.com',
+            'password': 'userpass'
+        })
+        user_headers = {'Authorization': 'Bearer ' + user_login.get_json()['token']}
+        forbidden_export = self.client.get('/api/admin/exports/users.csv', headers=user_headers)
+        self.assertEqual(forbidden_export.status_code, 403)
+        for dataset, expected_header in (
+            ('users', 'user_id,name,email'),
+            ('activities', 'record_id,user_id,user_name'),
+            ('qr-claims', 'claim_id,event_id,business_name'),
+        ):
+            exported = self.client.get(f'/api/admin/exports/{dataset}.csv', headers=admin_headers)
+            self.assertEqual(exported.status_code, 200, exported.get_data(as_text=True))
+            self.assertEqual(exported.mimetype, 'text/csv')
+            self.assertIn(expected_header, exported.get_data(as_text=True))
 
         progress = self.client.get('/api/admin/users/2/progress', headers=admin_headers)
         self.assertEqual(progress.status_code, 200)

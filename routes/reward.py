@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from sqlalchemy import func
 from routes.auth import token_required
 from repositories.db import db
 from repositories.models import Reward, Redemption
@@ -21,6 +22,37 @@ def get_rewards(current_user):
             "tier": reward.tier,
         })
     return jsonify({"rewards": result}), 200
+
+
+@reward_bp.route('/history', methods=['GET'])
+@token_required
+def get_redemption_history(current_user):
+    redemptions = db.session.query(Redemption, Reward).join(
+        Reward, Reward.reward_id == Redemption.reward_id
+    ).filter(
+        Redemption.user_id == current_user.user_id
+    ).order_by(
+        Redemption.redeemed_at.desc()
+    ).limit(50).all()
+    totals = db.session.query(
+        func.count(Redemption.redemption_id),
+        func.coalesce(func.sum(Redemption.points_used), 0),
+    ).filter(
+        Redemption.user_id == current_user.user_id
+    ).first()
+
+    return jsonify({
+        "total_redemptions": int(totals[0] or 0),
+        "total_points_spent": float(totals[1] or 0),
+        "redemptions": [{
+            "redemption_id": redemption.redemption_id,
+            "reward_id": reward.reward_id,
+            "reward_name": reward.name,
+            "points_used": float(redemption.points_used),
+            "status": redemption.status,
+            "redeemed_at": redemption.redeemed_at.isoformat() if redemption.redeemed_at else None,
+        } for redemption, reward in redemptions],
+    }), 200
 
 
 @reward_bp.route('/<int:reward_id>/redeem', methods=['POST'])

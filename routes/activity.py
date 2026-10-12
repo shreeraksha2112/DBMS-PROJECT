@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 from flask import Blueprint, request, jsonify
+from sqlalchemy import func
 from routes.auth import token_required
 from repositories.db import db
 from repositories.models import ActivityType, ImpactFactor, EcoActivity, ImpactRecord, User
@@ -9,6 +12,19 @@ from services.recommendation_service import update_challenge_progress
 from services.verification_service import evaluate_activity_anomaly, create_notification, log_audit_event
 
 activity_bp = Blueprint('activity', __name__)
+
+
+@activity_bp.route('/types', methods=['GET'])
+@token_required
+def get_activity_types(current_user):
+    activity_types = ActivityType.query.order_by(ActivityType.name.asc()).all()
+    return jsonify({
+        "activity_types": [{
+            "activity_id": item.activity_id,
+            "name": item.name,
+            "unit": item.unit,
+        } for item in activity_types]
+    }), 200
 
 
 @activity_bp.route('/', methods=['POST'])
@@ -81,15 +97,61 @@ def submit_activity(current_user):
 @activity_bp.route('/', methods=['GET'])
 @token_required
 def get_activities(current_user):
-    activities = EcoActivity.query.filter_by(user_id=current_user.user_id).order_by(EcoActivity.activity_date.desc()).all()
+    query = EcoActivity.query.filter_by(user_id=current_user.user_id)
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    activity_id = request.args.get('activity_id')
+    status = request.args.get('status')
+
+    try:
+        if start_date:
+            query = query.filter(EcoActivity.activity_date >= datetime.strptime(start_date, '%Y-%m-%d'))
+        if end_date:
+            inclusive_end = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(EcoActivity.activity_date < inclusive_end)
+    except ValueError:
+        return jsonify({"error": "Dates must use YYYY-MM-DD format"}), 400
+
+    if activity_id:
+        try:
+            parsed_activity_id = int(activity_id)
+        except ValueError:
+            return jsonify({"error": "activity_id must be a valid integer"}), 400
+        if not ActivityType.query.get(parsed_activity_id):
+            return jsonify({"error": "Unknown activity type"}), 400
+        query = query.filter_by(activity_id=parsed_activity_id)
+    if status:
+        if status not in {'pending', 'approved', 'rejected', 'flagged'}:
+            return jsonify({"error": "status must be pending, approved, rejected, or flagged"}), 400
+        query = query.filter_by(status=status)
+
+    if start_date and end_date and start_date > end_date:
+        return jsonify({"error": "start_date must not be after end_date"}), 400
+
+    activities = query.order_by(EcoActivity.activity_date.desc()).all()
+    totals = db.session.query(
+        func.count(EcoActivity.record_id),
+        func.coalesce(func.sum(EcoActivity.quantity), 0),
+        func.coalesce(func.sum(EcoActivity.points), 0),
+    ).filter(
+        EcoActivity.record_id.in_([item.record_id for item in activities])
+    ).first() if activities else (0, 0, 0)
     result = []
     for activity in activities:
         result.append({
             "record_id": activity.record_id,
             "activity_name": activity.activity_type.name,
+            "activity_id": activity.activity_id,
             "quantity": float(activity.quantity),
             "points": float(activity.points),
             "status": activity.status,
             "date": activity.activity_date.isoformat() if activity.activity_date else None,
         })
-    return jsonify({"activities": result}), 200
+    return jsonify({
+        "activities": result,
+        "summary": {
+            "count": int(totals[0] or 0),
+            "total_quantity": float(totals[1] or 0),
+            "total_points": float(totals[2] or 0),
+        },
+    }), 200

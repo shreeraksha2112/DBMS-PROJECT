@@ -160,8 +160,10 @@ def create_app(config_class=Config):
     @app.route('/api/notifications', methods=['GET'])
     @token_required
     def notifications_endpoint(current_user):
-        notifications = Notification.query.filter_by(user_id=current_user.user_id).order_by(Notification.created_at.desc()).all()
+        notifications = Notification.query.filter_by(user_id=current_user.user_id).order_by(Notification.created_at.desc()).limit(50).all()
+        unread_count = Notification.query.filter_by(user_id=current_user.user_id, is_read=False).count()
         return jsonify({
+            "unread_count": unread_count,
             "notifications": [{
                 "notification_id": item.notification_id,
                 "type": item.notification_type,
@@ -169,6 +171,41 @@ def create_app(config_class=Config):
                 "is_read": item.is_read,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
             } for item in notifications]
+        }), 200
+
+    @app.route('/api/notifications/<int:notification_id>/read', methods=['PATCH'])
+    @token_required
+    def mark_notification_read(current_user, notification_id):
+        notification = Notification.query.filter_by(
+            notification_id=notification_id,
+            user_id=current_user.user_id,
+        ).first()
+        if not notification:
+            return jsonify({"error": "Notification not found"}), 404
+        notification.is_read = True
+        db.session.commit()
+        return jsonify({"notification_id": notification.notification_id, "is_read": True}), 200
+
+    @app.route('/api/notifications/read-all', methods=['PATCH'])
+    @token_required
+    def mark_all_notifications_read(current_user):
+        updated = Notification.query.filter_by(
+            user_id=current_user.user_id,
+            is_read=False,
+        ).update({Notification.is_read: True}, synchronize_session=False)
+        db.session.commit()
+        return jsonify({"updated": updated}), 200
+
+    @app.route('/api/badges', methods=['GET'])
+    @token_required
+    def user_badges_endpoint(current_user):
+        from services.gamification_service import evaluate_badges_for_user, get_user_badges
+
+        evaluate_badges_for_user(current_user.user_id)
+        badges = get_user_badges(current_user.user_id)
+        return jsonify({
+            "earned_count": sum(1 for badge in badges if badge['earned']),
+            "badges": badges,
         }), 200
 
     @app.route('/api/qr-rewards/history', methods=['GET'])

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from repositories.models import Challenge, UserChallenge
 from services.verification_service import create_notification, log_audit_event
 from services.wallet_service import credit_wallet
@@ -20,9 +22,12 @@ def get_recommendations_for_user(user_id, limit=3):
 
 def update_challenge_progress(user_id, activity_id, quantity):
     active_challenges = UserChallenge.query.filter_by(user_id=user_id, status='active').all()
+    now = datetime.utcnow()
     for user_challenge in active_challenges:
         challenge = user_challenge.challenge
         if not challenge:
+            continue
+        if challenge.end_date <= now or (challenge.start_date and challenge.start_date > now):
             continue
 
         if challenge.type == 'personal' and challenge.title.lower().startswith('cycling') and activity_id == 1:
@@ -48,4 +53,7 @@ def update_challenge_progress(user_id, activity_id, quantity):
                     challenge.challenge_id,
                     challenge.title,
                 )
+                from services.gamification_service import evaluate_badges_for_user
+
+                evaluate_badges_for_user(user_id)
     return True

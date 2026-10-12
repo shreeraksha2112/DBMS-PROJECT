@@ -195,6 +195,14 @@
                 <h5 class="section-title mb-3">Rewards Catalog</h5>
                 <div id="rewardList" class="d-grid gap-2"></div>
                 <div id="rewardMessage" class="mt-3 text-info"></div>
+                <div class="redemption-history">
+                    <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                        <h6 class="section-title mb-0">Redemption history</h6>
+                        <button class="btn btn-sm btn-outline-success" type="button" onclick="loadRedemptionHistory()">Refresh</button>
+                    </div>
+                    <p id="redemptionSummary" class="small text-muted mb-2"></p>
+                    <div id="redemptionHistory" class="list-group"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -209,9 +217,28 @@
 
         <div class="col-lg-6">
             <div class="card p-4">
-                <h5 class="section-title mb-3">Notifications</h5>
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                    <h5 class="section-title mb-0">Notifications</h5>
+                    <button class="btn btn-sm btn-outline-success" id="markAllNotificationsRead" type="button" onclick="markAllNotificationsRead()">Mark all read</button>
+                </div>
+                <p id="notificationSummary" class="small text-muted mb-2"></p>
                 <div id="notificationList" class="list-group"></div>
             </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12">
+            <section class="card p-4" aria-labelledby="badgesTitle">
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                    <div>
+                        <h5 class="section-title mb-1" id="badgesTitle">Badges &amp; milestones</h5>
+                        <p class="small text-muted mb-0">Earn recognition for approved activities, impact, and completed challenges.</p>
+                    </div>
+                    <span class="mini-pill" id="badgeCount">0 earned</span>
+                </div>
+                <div id="badgeList" class="badge-grid"></div>
+            </section>
         </div>
     </div>
 
@@ -302,19 +329,68 @@
 
         <div class="col-12">
             <div class="card p-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="section-title mb-0">Registered Users</h5>
-                    <button class="btn btn-sm btn-success" onclick="loadAdminUsers()">Refresh</button>
+                <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-2">
+                    <div>
+                        <h5 class="section-title mb-0">Registered Users</h5>
+                        <p id="adminUsersSummary" class="small text-muted mb-0" aria-live="polite">Loading accounts…</p>
+                    </div>
+                    <button class="btn btn-sm btn-success" id="refreshAdminUsers" onclick="loadAdminUsers()">Refresh</button>
                 </div>
+                <label class="visually-hidden" for="adminUserSearch">Search registered users</label>
+                <input class="form-control form-control-sm admin-user-search mb-2" id="adminUserSearch" type="search" placeholder="Search by name or email" oninput="renderAdminUsers()">
                 <div id="adminUserList" class="list-group"></div>
             </div>
+        </div>
+        <div class="col-12">
+            <section class="card p-4">
+                <div>
+                    <h5 class="section-title mb-1">Download reports</h5>
+                    <p class="small text-muted mb-3">Export registered users, activity submissions, or QR reward claims as CSV.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-success" type="button" onclick="downloadAdminCsv('users')">Export users</button>
+                    <button class="btn btn-outline-success" type="button" onclick="downloadAdminCsv('activities')">Export activities</button>
+                    <button class="btn btn-outline-success" type="button" onclick="downloadAdminCsv('qr-claims')">Export QR claims</button>
+                </div>
+                <p id="adminExportMessage" class="small mt-2 mb-0" role="status" aria-live="polite"></p>
+            </section>
         </div>
     </div>
 
     <div class="row g-3">
         <div class="col-lg-6">
             <div class="card p-4">
-                <h5 class="section-title mb-3">Recent Activities</h5>
+                <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+                    <h5 class="section-title mb-0">Activity history</h5>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="resetActivityFilters()">Reset filters</button>
+                </div>
+                <div class="activity-filter-grid mb-3">
+                    <div>
+                        <label class="form-label" for="activityFilterType">Activity type</label>
+                        <select id="activityFilterType" class="form-select form-select-sm" onchange="loadActivityHistory()">
+                            <option value="">All types</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="activityFilterStatus">Status</label>
+                        <select id="activityFilterStatus" class="form-select form-select-sm" onchange="loadActivityHistory()">
+                            <option value="">All statuses</option>
+                            <option value="approved">Approved</option>
+                            <option value="pending">Pending</option>
+                            <option value="flagged">Flagged</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="activityFilterStart">From</label>
+                        <input id="activityFilterStart" class="form-control form-control-sm" type="date" onchange="loadActivityHistory()">
+                    </div>
+                    <div>
+                        <label class="form-label" for="activityFilterEnd">To</label>
+                        <input id="activityFilterEnd" class="form-control form-control-sm" type="date" onchange="loadActivityHistory()">
+                    </div>
+                </div>
+                <p id="activityHistorySummary" class="small text-muted mb-2" aria-live="polite"></p>
                 <div id="activityList" class="list-group"></div>
             </div>
         </div>
@@ -337,6 +413,13 @@
     let challengeFilter = 'all';
     let currentChallenges = [];
     let qrRewardClaims = [];
+    let adminUsers = [];
+    let adminUserIds = new Set();
+    let adminUsersRefreshTimer = null;
+    let isLoadingAdminUsers = false;
+    let hasLoadedAdminUsers = false;
+    let challengeReminderTimer = null;
+    let isCheckingChallengeReminders = false;
 
     if (token) {
         showDashboard();
@@ -400,6 +483,14 @@
     }
 
     function logout() {
+        if (challengeReminderTimer) {
+            clearInterval(challengeReminderTimer);
+            challengeReminderTimer = null;
+        }
+        if (adminUsersRefreshTimer) {
+            clearInterval(adminUsersRefreshTimer);
+            adminUsersRefreshTimer = null;
+        }
         localStorage.removeItem('eco_token');
         sessionStorage.removeItem('eco_admin_token');
         token = null;
@@ -413,6 +504,30 @@
         document.getElementById('dashboardSection').classList.remove('hidden');
         document.getElementById('logoutBtn').classList.remove('hidden');
         loadDashboardData();
+        startChallengeReminderPolling();
+    }
+
+    function startChallengeReminderPolling() {
+        if (challengeReminderTimer) return;
+        challengeReminderTimer = setInterval(async () => {
+            if (document.visibilityState !== 'visible' || !token || isCheckingChallengeReminders) return;
+            isCheckingChallengeReminders = true;
+            try {
+                const challengeResponse = await fetch(`${API_BASE}/challenges/`, { headers: authHeaders() });
+                if (challengeResponse.status === 401) {
+                    logout();
+                    return;
+                }
+                const challengeData = await challengeResponse.json();
+                if (!challengeResponse.ok) throw new Error(challengeData.error || 'Could not refresh challenge reminders.');
+                renderChallenges(challengeData.challenges || []);
+                await refreshNotifications();
+            } catch (error) {
+                console.error('Unable to check challenge reminders:', error);
+            } finally {
+                isCheckingChallengeReminders = false;
+            }
+        }, 5 * 60 * 1000);
     }
 
     async function loadDashboardData() {
@@ -443,14 +558,15 @@
             const rewardsRes = await fetch(`${API_BASE}/rewards/`, { headers: authHeaders() });
             const rewardsData = await rewardsRes.json();
             renderRewards(rewardsData.rewards || []);
+            await loadRedemptionHistory();
+            await loadUserBadges();
 
-            const activityRes = await fetch(`${API_BASE}/activities/`, { headers: authHeaders() });
-            const activityData = await activityRes.json();
-            renderActivities(activityData.activities || []);
+            await loadActivityTypes();
+            await loadActivityHistory();
 
             const notificationsRes = await fetch(`${API_BASE}/notifications`, { headers: authHeaders() });
             const notificationsData = await notificationsRes.json();
-            renderNotifications(notificationsData.notifications || []);
+            renderNotifications(notificationsData.notifications || [], notificationsData.unread_count || 0);
             await loadQrRewardHistory();
 
             const leaderboardRes = await fetch(`${API_BASE}/leaderboard`, { headers: authHeaders() });
@@ -461,6 +577,7 @@
             const adminPanel = document.getElementById('adminFeaturePanel');
             if (role === 'Admin') {
                 adminPanel.classList.remove('hidden');
+                startAdminUsersRefresh();
                 await loadAdminAnalytics();
                 await loadAdminModeration();
 
@@ -471,6 +588,10 @@
                 await loadAdminUsers();
                 await loadAdminQrEvents();
             } else {
+                if (adminUsersRefreshTimer) {
+                    clearInterval(adminUsersRefreshTimer);
+                    adminUsersRefreshTimer = null;
+                }
                 adminPanel.classList.add('hidden');
             }
         } catch (error) {
@@ -815,28 +936,95 @@
         await loadAdminQrEvents();
     }
 
+    async function downloadAdminCsv(dataset) {
+        if (getUserRole() !== 'Admin') return;
+        const message = document.getElementById('adminExportMessage');
+        try {
+            const response = await fetch(`${API_BASE}/admin/exports/${encodeURIComponent(dataset)}.csv`, {
+                headers: authHeaders(),
+                cache: 'no-store'
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Could not export this report.');
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ecosphere-${dataset}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+            message.textContent = `${dataset} report downloaded.`;
+            message.className = 'small mt-2 mb-0 text-success';
+        } catch (error) {
+            console.error('Unable to download CSV report:', error);
+            message.textContent = error.message || 'Could not export this report.';
+            message.className = 'small mt-2 mb-0 text-danger';
+        }
+    }
+
     async function loadAdminUsers() {
         if (getUserRole() !== 'Admin') return;
+        if (isLoadingAdminUsers) return;
 
-        const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
-        const data = await res.json();
+        const summary = document.getElementById('adminUsersSummary');
+        const refreshButton = document.getElementById('refreshAdminUsers');
+        isLoadingAdminUsers = true;
+        if (refreshButton) refreshButton.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders(), cache: 'no-store' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load registered accounts.');
+            const previousIds = adminUserIds;
+            adminUsers = data.users || [];
+            adminUserIds = new Set(adminUsers.map(user => user.user_id));
+            const newAccounts = hasLoadedAdminUsers
+                ? adminUsers.filter(user => !previousIds.has(user.user_id)).length
+                : 0;
+            hasLoadedAdminUsers = true;
+            renderAdminUsers();
+            const updatedAt = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            summary.textContent = `${adminUsers.length} account(s) · Live refresh every 20 seconds · Updated ${updatedAt}${newAccounts ? ` · ${newAccounts} new` : ''}`;
+            summary.className = `small mb-0 ${newAccounts ? 'text-success' : 'text-muted'}`;
+        } catch (error) {
+            console.error('Unable to load registered accounts:', error);
+            summary.textContent = error.message || 'Could not load registered accounts.';
+            summary.className = 'small text-danger mb-0';
+        } finally {
+            isLoadingAdminUsers = false;
+            if (refreshButton) refreshButton.disabled = false;
+        }
+    }
+
+    function startAdminUsersRefresh() {
+        if (adminUsersRefreshTimer) return;
+        adminUsersRefreshTimer = setInterval(() => {
+            if (document.visibilityState === 'visible') loadAdminUsers();
+        }, 20000);
+    }
+
+    function renderAdminUsers() {
         const list = document.getElementById('adminUserList');
-
-        if (!res.ok || !data.users || !data.users.length) {
-            list.innerHTML = '<div class="text-muted">No registered users found.</div>';
+        const search = (document.getElementById('adminUserSearch').value || '').trim().toLowerCase();
+        const visibleUsers = adminUsers.filter(user =>
+            `${user.name} ${user.email}`.toLowerCase().includes(search)
+        );
+        if (!visibleUsers.length) {
+            list.innerHTML = `<div class="text-muted">${search ? 'No accounts match your search.' : 'No registered users found.'}</div>`;
             return;
         }
 
-        list.innerHTML = data.users.map(user => `
+        list.innerHTML = visibleUsers.map(user => `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                     <div>
-                        <strong>${user.name}</strong><br>
-                        <small class="text-muted">${user.email}</small><br>
-                        <small class="text-muted">Role: ${user.role_name || 'User'} • Level ${user.level} • Score ${Number(user.eco_score || 0).toFixed(1)}</small>
+                        <strong>${escapeHtml(user.name)}</strong><br>
+                        <small class="text-muted">${escapeHtml(user.email)}</small><br>
+                        <small class="text-muted">Role: ${escapeHtml(user.role_name || 'User')} • Level ${user.level} • Score ${Number(user.eco_score || 0).toFixed(1)}</small>
                     </div>
                     <div class="text-end">
-                        <span class="mini-pill">${user.account_status || 'active'}</span>
+                        <span class="mini-pill">${escapeHtml(user.account_status || 'active')}</span>
                     </div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap mt-3">
@@ -929,6 +1117,8 @@
 
         container.innerHTML = challenges.map(challenge => {
             const progress = Math.min(100, Math.max(0, challenge.progress / challenge.target_value * 100));
+            const endDate = challenge.end_date ? new Date(challenge.end_date) : null;
+            const startDate = challenge.start_date ? new Date(challenge.start_date) : null;
             const statusLabel = challenge.status === 'completed'
                 ? 'Completed'
                 : challenge.status === 'active'
@@ -936,7 +1126,15 @@
                     : challenge.status === 'upcoming'
                         ? 'Coming soon'
                         : challenge.status === 'expired' ? 'Ended' : 'Available';
-            const endDate = challenge.end_date ? new Date(challenge.end_date).toLocaleDateString() : 'No end date';
+            const endDateLabel = endDate ? endDate.toLocaleDateString() : 'No end date';
+            const now = Date.now();
+            const timeNote = challenge.status === 'upcoming' && startDate
+                ? `Starts ${startDate.toLocaleDateString()}`
+                : endDate && endDate.getTime() > now && endDate.getTime() - now <= 86400000
+                    ? 'Ends within 24 hours'
+                    : endDate && endDate.getTime() > now
+                        ? `Ends in ${Math.ceil((endDate.getTime() - now) / 86400000)} days`
+                        : '';
             const action = challenge.status === 'available'
                 ? `<button class="btn btn-sm btn-outline-success mt-3" onclick="joinChallenge(${challenge.challenge_id})">Join challenge</button>`
                 : challenge.status === 'active'
@@ -949,6 +1147,9 @@
                     : challenge.status === 'completed'
                         ? '<div class="small text-success mt-3">Bonus points added to your wallet.</div>'
                         : '';
+            const reminderAction = challenge.status !== 'expired' && challenge.status !== 'completed'
+                ? `<button class="btn btn-sm ${challenge.reminder_enabled ? 'btn-outline-primary' : 'btn-outline-secondary'} mt-3" onclick="toggleChallengeReminder(${challenge.challenge_id}, ${challenge.reminder_enabled})">${challenge.reminder_enabled ? 'Reminder on · Turn off' : 'Remind me'}</button>`
+                : '';
             return `
                 <article class="card p-3 challenge-card">
                     <div class="d-flex justify-content-between align-items-start gap-2">
@@ -958,8 +1159,13 @@
                         </div>
                         <span class="mini-pill">${statusLabel}</span>
                     </div>
-                    <div class="small text-muted mt-2">Target: ${Number(challenge.target_value).toLocaleString()} · Bonus: ${Number(challenge.reward_points).toLocaleString()} pts</div>
+                    <div class="small text-muted mt-2">Target: ${Number(challenge.target_value).toLocaleString()} · Bonus: ${Number(challenge.reward_points).toLocaleString()} pts${timeNote ? ` · ${timeNote}` : ''}</div>
                     ${action}
+                    <div class="d-flex gap-2 flex-wrap">
+                        ${reminderAction}
+                        <button class="btn btn-sm btn-outline-success mt-3" onclick="loadChallengeLeaderboard(${challenge.challenge_id})">View leaderboard</button>
+                    </div>
+                    <div id="challenge-leaderboard-${challenge.challenge_id}" class="challenge-leaderboard hidden"></div>
                 </article>
             `;
         }).join('');
@@ -984,40 +1190,246 @@
         `).join('');
     }
 
+    async function loadActivityTypes() {
+        const select = document.getElementById('activityFilterType');
+        if (select.options.length > 1) return;
+        try {
+            const response = await fetch(`${API_BASE}/activities/types`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load activity types.');
+            for (const item of data.activity_types || []) {
+                const option = document.createElement('option');
+                option.value = item.activity_id;
+                option.textContent = `${item.name} (${item.unit})`;
+                select.append(option);
+            }
+        } catch (error) {
+            console.error('Unable to load activity types:', error);
+            document.getElementById('activityHistorySummary').textContent = error.message || 'Could not load activity types.';
+        }
+    }
+
+    async function loadActivityHistory() {
+        const params = new URLSearchParams();
+        const activityId = document.getElementById('activityFilterType').value;
+        const status = document.getElementById('activityFilterStatus').value;
+        const startDate = document.getElementById('activityFilterStart').value;
+        const endDate = document.getElementById('activityFilterEnd').value;
+        if (activityId) params.set('activity_id', activityId);
+        if (status) params.set('status', status);
+        if (startDate) params.set('start_date', startDate);
+        if (endDate) params.set('end_date', endDate);
+
+        const summary = document.getElementById('activityHistorySummary');
+        try {
+            const response = await fetch(`${API_BASE}/activities/?${params.toString()}`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load activity history.');
+            renderActivities(data.activities || []);
+            const totals = data.summary || {};
+            summary.textContent = `${Number(totals.count || 0).toLocaleString()} activities · ${Number(totals.total_quantity || 0).toLocaleString()} total quantity · ${Number(totals.total_points || 0).toLocaleString()} points`;
+            summary.className = 'small text-muted mb-2';
+        } catch (error) {
+            console.error('Unable to load activity history:', error);
+            summary.textContent = error.message || 'Could not load activity history.';
+            summary.className = 'small text-danger mb-2';
+            document.getElementById('activityList').innerHTML = '';
+        }
+    }
+
+    function resetActivityFilters() {
+        document.getElementById('activityFilterType').value = '';
+        document.getElementById('activityFilterStatus').value = '';
+        document.getElementById('activityFilterStart').value = '';
+        document.getElementById('activityFilterEnd').value = '';
+        loadActivityHistory();
+    }
+
+    async function loadRedemptionHistory() {
+        const container = document.getElementById('redemptionHistory');
+        try {
+            const response = await fetch(`${API_BASE}/rewards/history`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load redemption history.');
+            document.getElementById('redemptionSummary').textContent =
+                `${Number(data.total_redemptions || 0).toLocaleString()} redemptions · ${Number(data.total_points_spent || 0).toLocaleString()} points spent`;
+            if (!data.redemptions || !data.redemptions.length) {
+                container.innerHTML = '<div class="small text-muted">No rewards redeemed yet.</div>';
+                return;
+            }
+            container.innerHTML = data.redemptions.map(item => `
+                <div class="list-group-item redemption-history-item">
+                    <div>
+                        <strong>${escapeHtml(item.reward_name)}</strong>
+                        <div class="small text-muted">${item.redeemed_at ? new Date(item.redeemed_at).toLocaleString() : 'Date unavailable'} · ${escapeHtml(item.status)}</div>
+                    </div>
+                    <span class="mini-pill">-${Number(item.points_used).toLocaleString()} pts</span>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Unable to load redemption history:', error);
+            container.innerHTML = `<div class="small text-danger">${escapeHtml(error.message || 'Could not load redemption history.')}</div>`;
+        }
+    }
+
+    async function loadUserBadges() {
+        const container = document.getElementById('badgeList');
+        try {
+            const response = await fetch(`${API_BASE}/badges`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load badges.');
+            document.getElementById('badgeCount').textContent = `${Number(data.earned_count || 0)} earned`;
+            if (!data.badges || !data.badges.length) {
+                container.innerHTML = '<div class="small text-muted">No milestones available yet.</div>';
+                return;
+            }
+            container.innerHTML = data.badges.map(badge => {
+                const progress = Math.min(100, badge.rule_value ? badge.progress / badge.rule_value * 100 : 0);
+                const goalText = badge.rule_type === 'eco_score'
+                    ? `${Number(badge.progress).toLocaleString()} / ${Number(badge.rule_value).toLocaleString()} eco points`
+                    : badge.rule_type === 'activity_count'
+                        ? `${Number(badge.progress).toLocaleString()} / ${Number(badge.rule_value).toLocaleString()} approved activities`
+                        : `${Number(badge.progress).toLocaleString()} / ${Number(badge.rule_value).toLocaleString()} completed challenges`;
+                return `
+                    <article class="badge-item ${badge.earned ? 'badge-earned' : ''}">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <strong>${badge.earned ? '★' : '◇'} ${escapeHtml(badge.name)}</strong>
+                            <span class="mini-pill">${badge.earned ? 'Earned' : 'Locked'}</span>
+                        </div>
+                        <div class="small text-muted mt-2">${goalText}</div>
+                        ${badge.earned
+                            ? `<div class="small text-success mt-2">${badge.earned_at ? new Date(badge.earned_at).toLocaleDateString() : 'Milestone achieved'}</div>`
+                            : `<div class="progress mt-2" role="progressbar" aria-label="${escapeHtml(badge.name)} progress" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar eco-progress-bar" style="width: ${progress}%"></div></div>`}
+                    </article>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Unable to load badges:', error);
+            container.innerHTML = `<div class="small text-danger">${escapeHtml(error.message || 'Could not load badges.')}</div>`;
+        }
+    }
+
+    async function loadChallengeLeaderboard(challengeId) {
+        const container = document.getElementById(`challenge-leaderboard-${challengeId}`);
+        container.classList.remove('hidden');
+        container.innerHTML = '<div class="small text-muted">Loading challenge leaderboard…</div>';
+        try {
+            const response = await fetch(`${API_BASE}/challenges/${challengeId}/leaderboard`, { headers: authHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load leaderboard.');
+            if (!data.leaderboard.length) {
+                container.innerHTML = '<div class="small text-muted">No one has joined this challenge yet.</div>';
+                return;
+            }
+            container.innerHTML = `
+                <h6 class="small fw-bold mt-3">Participant leaderboard</h6>
+                ${data.leaderboard.slice(0, 10).map(item => `
+                    <div class="challenge-rank ${item.is_current_user ? 'challenge-rank-self' : ''}">
+                        <span>#${item.rank} · ${escapeHtml(item.name)}${item.is_current_user ? ' (you)' : ''}</span>
+                        <span>${Number(item.progress).toLocaleString()} / ${Number(item.target_value).toLocaleString()}${item.status === 'completed' ? ' · Complete' : ''}</span>
+                    </div>
+                `).join('')}
+            `;
+        } catch (error) {
+            container.innerHTML = `<div class="small text-danger mt-2">${escapeHtml(error.message || 'Could not load leaderboard.')}</div>`;
+        }
+    }
+
+    async function toggleChallengeReminder(challengeId, enabled) {
+        const response = await fetch(`${API_BASE}/challenges/${challengeId}/reminder`, {
+            method: enabled ? 'DELETE' : 'PUT',
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        const message = document.getElementById('challengeMessage');
+        if (!response.ok) {
+            message.textContent = data.error || 'Could not update challenge reminder.';
+            message.className = 'small mb-2 text-danger';
+            return;
+        }
+        message.textContent = enabled
+            ? 'Challenge reminders turned off.'
+            : 'Reminder enabled. You’ll get in-app notifications before the challenge starts or ends.';
+        message.className = 'small mb-2 text-success';
+        const challengeResponse = await fetch(`${API_BASE}/challenges/`, { headers: authHeaders() });
+        const challengeData = await challengeResponse.json();
+        if (challengeResponse.ok) renderChallenges(challengeData.challenges || []);
+    }
+
     function renderActivities(activities) {
         const container = document.getElementById('activityList');
         if (!activities.length) {
-            container.innerHTML = '<div class="text-muted">No activity logged yet.</div>';
+            container.innerHTML = '<div class="text-muted">No activities match these filters.</div>';
             return;
         }
 
-        container.innerHTML = activities.slice(0, 6).map(activity => `
+        container.innerHTML = activities.map(activity => `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between">
-                    <strong>${activity.activity_name}</strong>
-                    <span class="mini-pill">${activity.status}</span>
+                    <strong>${escapeHtml(activity.activity_name)}</strong>
+                    <span class="mini-pill">${escapeHtml(activity.status)}</span>
                 </div>
-                <div class="small text-muted">${activity.quantity} • ${activity.points} pts</div>
+                <div class="small text-muted">${Number(activity.quantity).toLocaleString()} · ${Number(activity.points).toLocaleString()} pts · ${activity.date ? new Date(activity.date).toLocaleDateString() : ''}</div>
             </div>
         `).join('');
     }
 
-    function renderNotifications(notifications) {
+    function renderNotifications(notifications, unreadCount = notifications.filter(item => !item.is_read).length) {
         const container = document.getElementById('notificationList');
+        const summary = document.getElementById('notificationSummary');
+        summary.textContent = `${unreadCount} unread · ${notifications.length} recent`;
+        document.getElementById('markAllNotificationsRead').disabled = unreadCount === 0;
         if (!notifications.length) {
             container.innerHTML = '<div class="text-muted">No notifications yet.</div>';
             return;
         }
 
-        container.innerHTML = notifications.slice(0, 6).map(item => `
+        container.innerHTML = notifications.map(item => `
             <div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-center">
-                    <strong>${item.type}</strong>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <strong>${escapeHtml(item.type)}</strong>
                     <span class="mini-pill">${item.is_read ? 'Read' : 'New'}</span>
                 </div>
-                <div class="small text-muted mt-2">${item.message}</div>
+                <div class="small text-muted mt-2">${escapeHtml(item.message)}</div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted">${item.created_at ? new Date(item.created_at).toLocaleString() : ''}</small>
+                    ${item.is_read ? '' : `<button class="btn btn-sm btn-outline-success" onclick="markNotificationRead(${item.notification_id})">Mark read</button>`}
+                </div>
             </div>
         `).join('');
+    }
+
+    async function refreshNotifications() {
+        const response = await fetch(`${API_BASE}/notifications`, { headers: authHeaders() });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not refresh notifications.');
+        renderNotifications(data.notifications || [], data.unread_count || 0);
+    }
+
+    async function markNotificationRead(notificationId) {
+        const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+            method: 'PATCH',
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            console.error(data.error || 'Could not mark notification as read.');
+            return;
+        }
+        await refreshNotifications();
+    }
+
+    async function markAllNotificationsRead() {
+        const response = await fetch(`${API_BASE}/notifications/read-all`, {
+            method: 'PATCH',
+            headers: authHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            console.error(data.error || 'Could not mark notifications as read.');
+            return;
+        }
+        await refreshNotifications();
     }
 
     function renderModeration(flagged) {

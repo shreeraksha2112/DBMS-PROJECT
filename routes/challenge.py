@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
+from sqlalchemy import desc
 from routes.auth import token_required
 from repositories.db import db
-from repositories.models import Challenge, UserChallenge
+from repositories.models import Challenge, ChallengeReminder, Notification, User, UserChallenge
 
 challenge_bp = Blueprint('challenge', __name__)
 
@@ -12,6 +13,11 @@ challenge_bp = Blueprint('challenge', __name__)
 def get_challenges(current_user):
     challenges = Challenge.query.order_by(Challenge.end_date.asc()).all()
     now = datetime.utcnow()
+    reminders = {
+        reminder.challenge_id: reminder
+        for reminder in ChallengeReminder.query.filter_by(user_id=current_user.user_id).all()
+    }
+    notifications_created = False
     result = []
     for c in challenges:
         participation = UserChallenge.query.filter_by(
@@ -19,10 +25,39 @@ def get_challenges(current_user):
             challenge_id=c.challenge_id,
         ).first()
         status = participation.status if participation else 'available'
-        if not participation and c.end_date <= now:
+        if status == 'active' and c.end_date <= now:
+            status = 'expired'
+        elif not participation and c.end_date <= now:
             status = 'expired'
         elif not participation and c.start_date and c.start_date > now:
             status = 'upcoming'
+        reminder = reminders.get(c.challenge_id)
+        reminder_enabled = reminder is not None
+        if (
+            reminder and c.start_date and not reminder.start_reminder_sent
+            and c.start_date - timedelta(hours=24) <= now <= c.start_date + timedelta(hours=24)
+            and now < c.end_date
+        ):
+            message = (
+                f"'{c.title}' starts within 24 hours."
+                if now < c.start_date
+                else f"'{c.title}' has started. Check your progress!"
+            )
+            db.session.add(Notification(
+                user_id=current_user.user_id,
+                notification_type='challenge',
+                message=message,
+            ))
+            reminder.start_reminder_sent = True
+            notifications_created = True
+        if reminder and not reminder.end_reminder_sent and now < c.end_date <= now + timedelta(hours=24):
+            db.session.add(Notification(
+                user_id=current_user.user_id,
+                notification_type='challenge',
+                message=f"'{c.title}' ends within 24 hours. Check your progress!",
+            ))
+            reminder.end_reminder_sent = True
+            notifications_created = True
         result.append({
             "challenge_id": c.challenge_id,
             "title": c.title,
@@ -34,7 +69,10 @@ def get_challenges(current_user):
             "progress": float(participation.progress or 0.0) if participation else 0.0,
             "status": status,
             "joined": participation is not None,
+            "reminder_enabled": reminder_enabled,
         })
+    if notifications_created:
+        db.session.commit()
     return jsonify({"challenges": result}), 200
 
 @challenge_bp.route('/<int:challenge_id>/join', methods=['POST'])
@@ -76,3 +114,62 @@ def join_challenge(current_user, challenge_id):
             "joined": True,
         },
     }), 201
+
+
+@challenge_bp.route('/<int:challenge_id>/reminder', methods=['PUT', 'DELETE'])
+@token_required
+def set_challenge_reminder(current_user, challenge_id):
+    challenge = Challenge.query.get(challenge_id)
+    if not challenge:
+        return jsonify({"error": "Challenge not found"}), 404
+
+    reminder = ChallengeReminder.query.filter_by(
+        user_id=current_user.user_id,
+        challenge_id=challenge_id,
+    ).first()
+    if request.method == 'DELETE':
+        if reminder:
+            db.session.delete(reminder)
+            db.session.commit()
+        return jsonify({"reminder_enabled": False}), 200
+
+    if challenge.end_date <= datetime.utcnow():
+        return jsonify({"error": "Reminders are unavailable for ended challenges"}), 400
+    if reminder is None:
+        db.session.add(ChallengeReminder(user_id=current_user.user_id, challenge_id=challenge_id))
+    db.session.commit()
+    return jsonify({"reminder_enabled": True}), 200
+
+
+@challenge_bp.route('/<int:challenge_id>/leaderboard', methods=['GET'])
+@token_required
+def get_challenge_leaderboard(current_user, challenge_id):
+    challenge = Challenge.query.get(challenge_id)
+    if not challenge:
+        return jsonify({"error": "Challenge not found"}), 404
+
+    rows = db.session.query(UserChallenge, User).join(
+        User, User.user_id == UserChallenge.user_id
+    ).filter(
+        UserChallenge.challenge_id == challenge_id,
+        UserChallenge.status.in_(['active', 'completed']),
+        User.account_status == 'active',
+    ).order_by(
+        desc(UserChallenge.progress),
+        User.created_at.asc(),
+        User.user_id.asc(),
+    ).limit(50).all()
+
+    entries = [{
+        "rank": index,
+        "user_id": user.user_id,
+        "name": user.name,
+        "progress": float(participation.progress or 0),
+        "target_value": float(challenge.target_value),
+        "status": participation.status,
+        "is_current_user": user.user_id == current_user.user_id,
+    } for index, (participation, user) in enumerate(rows, start=1)]
+    return jsonify({
+        "challenge": {"challenge_id": challenge.challenge_id, "title": challenge.title},
+        "leaderboard": entries,
+    }), 200

@@ -119,6 +119,14 @@ class UserChallenge(db.Model):
     challenge = db.relationship('Challenge', back_populates='user_challenges')
 
 
+class ChallengeReminder(db.Model):
+    __tablename__ = 'challenge_reminders'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.challenge_id'), primary_key=True)
+    start_reminder_sent = db.Column(db.Boolean, default=False, nullable=False)
+    end_reminder_sent = db.Column(db.Boolean, default=False, nullable=False)
+
+
 class Badge(db.Model):
     __tablename__ = 'badges'
     badge_id = db.Column(db.Integer, primary_key=True)

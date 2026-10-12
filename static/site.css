@@ -134,9 +134,22 @@ body {
 .qr-history-stats small { color: var(--muted); font-size: 11px; }
 .qr-history-search { margin-top: 12px; }
 .qr-history-item { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.redemption-history { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.redemption-history-item { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
 .challenge-filter { width: auto; min-width: 145px; }
 .challenge-card { border-top: 1px solid var(--line) !important; }
+.challenge-leaderboard { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.challenge-rank { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #edf1ed; color: var(--muted); font-size: 12px; }
+.challenge-rank-self { color: var(--forest); font-weight: 700; }
 .eco-progress-bar { background: var(--leaf); }
+.activity-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.activity-filter-grid .form-label { margin-bottom: 4px; }
+.badge-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.badge-item { min-width: 0; padding: 14px; border: 1px solid var(--line); background: var(--white); }
+.badge-item > .d-flex strong { color: var(--muted); font-size: 13px; }
+.badge-earned { border-color: #bbd3bf; background: #f5faf4; }
+.badge-earned > .d-flex strong { color: var(--forest) !important; }
+.admin-user-search { max-width: 440px; }
 .qr-event-form { display: grid; grid-template-columns: 1.2fr 1.4fr 0.7fr 0.8fr auto; align-items: end; gap: 12px; margin-top: 22px; }
 .qr-event-form .form-label { color: #35443a; font-size: 11px; font-weight: 700; }
 .qr-event-form .form-control { min-width: 0; }
@@ -183,7 +196,10 @@ body {
     .qr-event-title-row { align-items: flex-start; }
     .qr-entry-controls { align-items: stretch; flex-direction: column; }
     .qr-history-item { align-items: flex-start; }
+    .redemption-history-item { align-items: flex-start; }
     .challenge-filter { width: 100%; }
+    .activity-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .badge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .analytics-heading { align-items: flex-start; flex-direction: column; }
     .analytics-range { width: 100%; }
     .analytics-grid { grid-template-columns: 1fr; }
